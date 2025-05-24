@@ -162,4 +162,4 @@ jobs:
           cache-from: |
             type=registry,ref=registry.rudolf.keenetic.link/rclone:build-${{ env.CACHE_NAME }}-${{ env.PLATFORM }}
           cache-to: |
-            type=registry,ref=registry.rudolf.keenetic.link/rclone:build-${{ env.CACHE_NAME }}-${{ env
+            type=registry,ref=ghcr.io/${{ env.REPO_NAME }}:build-${{ env.CACHE_NAME }}-${{ env.PLATFORM }},image-manifest=true,mode=max,compression=zstd
