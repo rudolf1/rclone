@@ -112,7 +112,7 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
           tags: |
-            type=raw,value=tg_copi,enable=true
+            type=ref,event=branch
 
       - name: Setup QEMU
         uses: docker/setup-qemu-action@v3
@@ -140,13 +140,6 @@ jobs:
             }
           skip-extraction: ${{ steps.go-cache.outputs.cache-hit }}
 
-      - name: Login to Private Registry
-        uses: docker/login-action@v3
-        with:
-          registry: registry.rudolf.keenetic.link
-          username: ${{ secrets.CR_USERNAME }}
-          password: ${{ secrets.CR_PASSWORD }}
-
       - name: Build and Publish Image Digest
         id: build
         uses: docker/build-push-action@v6
@@ -162,4 +155,4 @@ jobs:
           cache-from: |
             type=registry,ref=registry.rudolf.keenetic.link/rclone:build-${{ env.CACHE_NAME }}-${{ env.PLATFORM }}
           cache-to: |
-            type=registry,ref=ghcr.io/${{ env.REPO_NAME }}:build-${{ env.CACHE_NAME }}-${{ env.PLATFORM }},image-manifest=true,mode=max,compression=zstd
+            type=registry,ref=registry.rudolf.keenetic.link/rclone:build-${{ env.CACHE_NAME }}-${{ env.PLATFORM }},image-manifest=true,mode=max,compression=zstd
