@@ -20,7 +20,7 @@ on:
 
 jobs:
   build-image:
-    if: inputs.manual || (github.repository == 'rclone/rclone' && github.event_name != 'pull_request')
+#    if: inputs.manual || (github.repository == 'rclone/rclone' && github.event_name != 'pull_request')
     timeout-minutes: 60
     strategy:
       fail-fast: false
