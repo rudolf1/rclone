@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -107,6 +108,8 @@ var logReplacements = []string{
 	`^.*?Can't compare hashes, so using check --download.*?$`, dropMe,
 	// ignore timestamps in directory time updates
 	`^(INFO  : .*?: (Made directory with|Set directory) (metadata|modification time)).*$`, dropMe,
+	// ignore equivalent log for backends lacking dir modtime support
+	`^(INFO  : .*?: Making directory).*$`, dropMe,
 	// ignore sizes in directory time updates
 	`^(NOTICE: .*?: Skipped set directory modification time as --dry-run is set).*$`, dropMe,
 	// ignore sizes in directory metadata updates
@@ -207,15 +210,16 @@ type bisyncTest struct {
 	parent1  fs.Fs
 	parent2  fs.Fs
 	// global flags
-	argRemote1    string
-	argRemote2    string
-	noCompare     bool
-	noCleanup     bool
-	golden        bool
-	debug         bool
-	stopAt        int
-	TestFn        bisync.TestFunc
-	ignoreModtime bool // ignore modtimes when comparing final listings, for backends without support
+	argRemote1      string
+	argRemote2      string
+	noCompare       bool
+	noCleanup       bool
+	golden          bool
+	debug           bool
+	stopAt          int
+	TestFn          bisync.TestFunc
+	ignoreModtime   bool // ignore modtimes when comparing final listings, for backends without support
+	ignoreBlankHash bool // ignore blank hashes for backends where we allow them to be blank
 }
 
 var color = bisync.Color
@@ -623,7 +627,7 @@ func (b *bisyncTest) runTestStep(ctx context.Context, line string) (err error) {
 	testFunc := func() {
 		src := filepath.Join(b.dataDir, "file7.txt")
 
-		for i := 0; i < 50; i++ {
+		for i := range 50 {
 			dst := "file" + fmt.Sprint(i) + ".txt"
 			err := b.copyFile(ctx, src, b.replaceHex(b.path2), dst)
 			if err != nil {
@@ -743,6 +747,16 @@ func (b *bisyncTest) runTestStep(ctx context.Context, line string) (err error) {
 		return b.runBisync(ctx, args[1:])
 	case "test-func":
 		b.TestFn = testFunc
+		return
+	case "concurrent-func":
+		b.TestFn = func() {
+			src := filepath.Join(b.dataDir, "file7.txt")
+			dst := "file1.txt"
+			err := b.copyFile(ctx, src, b.replaceHex(b.path2), dst)
+			if err != nil {
+				fs.Errorf(src, "error copying file: %v", err)
+			}
+		}
 		return
 	case "fix-names":
 		// in case the local os converted any filenames
@@ -869,10 +883,9 @@ func (b *bisyncTest) runTestStep(ctx context.Context, line string) (err error) {
 		if !ok || err != nil {
 			fs.Logf(remotePath, "Can't find expected file %s (was it renamed by the os?) %v", args[1], err)
 			return
-		} else {
-			// include hash of filename to make unicode form differences easier to see in logs
-			fs.Debugf(remotePath, "verified file exists at correct path. filename hash: %s", stringToHash(leaf))
 		}
+		// include hash of filename to make unicode form differences easier to see in logs
+		fs.Debugf(remotePath, "verified file exists at correct path. filename hash: %s", stringToHash(leaf))
 		return
 	default:
 		return fmt.Errorf("unknown command: %q", args[0])
@@ -945,6 +958,10 @@ func (b *bisyncTest) checkPreReqs(ctx context.Context, opt *bisync.Options) (con
 	}
 	if (!b.fs1.Features().CanHaveEmptyDirectories || !b.fs2.Features().CanHaveEmptyDirectories) && (b.testCase == "createemptysrcdirs" || b.testCase == "rmdirs") {
 		b.t.Skip("skipping test as remote does not support empty dirs")
+	}
+	ignoreHashBackends := []string{"TestWebdavNextcloud", "TestWebdavOwncloud", "TestAzureFiles"} // backends that support hashes but allow them to be blank
+	if slices.ContainsFunc(ignoreHashBackends, func(prefix string) bool { return strings.HasPrefix(b.fs1.Name(), prefix) }) || slices.ContainsFunc(ignoreHashBackends, func(prefix string) bool { return strings.HasPrefix(b.fs2.Name(), prefix) }) {
+		b.ignoreBlankHash = true
 	}
 	if b.fs1.Precision() == fs.ModTimeNotSupported || b.fs2.Precision() == fs.ModTimeNotSupported {
 		if b.testCase != "nomodtime" {
@@ -1551,6 +1568,12 @@ func (b *bisyncTest) mangleResult(dir, file string, golden bool) string {
 	if b.fs1.Hashes() == hash.Set(hash.None) || b.fs2.Hashes() == hash.Set(hash.None) {
 		logReplacements = append(logReplacements, `^.*{hashtype} differ.*$`, dropMe)
 	}
+	if b.ignoreBlankHash {
+		logReplacements = append(logReplacements,
+			`^.*hash is missing.*$`, dropMe,
+			`^.*not equal on recheck.*$`, dropMe,
+		)
+	}
 	rep := logReplacements
 	if b.testCase == "dry_run" {
 		rep = append(rep, dryrunReplacements...)
@@ -1583,7 +1606,7 @@ func (b *bisyncTest) mangleResult(dir, file string, golden bool) string {
 		s = pathReplacer.Replace(strings.TrimSpace(s))
 
 		// Apply regular expression replacements
-		for i := 0; i < len(repFrom); i++ {
+		for i := range repFrom {
 			s = repFrom[i].ReplaceAllString(s, repTo[i])
 		}
 		s = strings.TrimSpace(s)
@@ -1598,7 +1621,7 @@ func (b *bisyncTest) mangleResult(dir, file string, golden bool) string {
 		// Sort consecutive groups of naturally unordered lines.
 		// Any such group must end before the log ends or it might be lost.
 		absorbed := false
-		for i := 0; i < len(dampers); i++ {
+		for i := range dampers {
 			match := false
 			if s != "" && !absorbed {
 				match = hoppers[i].MatchString(s)
@@ -1846,7 +1869,7 @@ func fileType(fileName string) string {
 }
 
 // logPrintf prints a message to stdout and to the test log
-func (b *bisyncTest) logPrintf(text string, args ...interface{}) {
+func (b *bisyncTest) logPrintf(text string, args ...any) {
 	line := fmt.Sprintf(text, args...)
 	fs.Log(nil, line)
 	if b.logFile != nil {
@@ -1913,7 +1936,7 @@ func ctxNoDsStore(ctx context.Context, t *testing.T) (context.Context, *filter.F
 	return ctxNoDsStore, fi
 }
 
-func checkError(t *testing.T, err error, msgAndArgs ...interface{}) {
+func checkError(t *testing.T, err error, msgAndArgs ...any) {
 	if errors.Is(err, fs.ErrorCantUploadEmptyFiles) {
 		t.Skipf("Skip test because remote cannot upload empty files")
 	}

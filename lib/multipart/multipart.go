@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	BufferSize           = 1024 * 1024     // BufferSize is the default size of the pages used in the reader
+	// BufferSize is the default size of the pages used in the reader
+	BufferSize           = 1024 * 1024
 	bufferCacheSize      = 64              // max number of buffers to keep in cache
 	bufferCacheFlushTime = 5 * time.Second // flush the cached buffers after this long
 )
@@ -61,10 +62,7 @@ func UploadMultipart(ctx context.Context, src fs.ObjectInfo, in io.Reader, opt U
 	}
 
 	// make concurrency machinery
-	concurrency := info.Concurrency
-	if concurrency < 1 {
-		concurrency = 1
-	}
+	concurrency := max(info.Concurrency, 1)
 	tokens := pacer.NewTokenDispenser(concurrency)
 
 	uploadCtx, cancel := context.WithCancel(ctx)

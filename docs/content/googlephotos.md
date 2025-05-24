@@ -14,6 +14,11 @@ Google Photos.
 limitations, so please read the [limitations section](#limitations)
 carefully to make sure it is suitable for your use.
 
+**NB** From March 31, 2025 rclone can only download photos it
+uploaded. This limitation is due to policy changes at Google. You may
+need to run `rclone config reconnect remote:` to make rclone work
+again after upgrading to rclone v1.70.
+
 ## Configuration
 
 The initial setup for google cloud storage involves getting a token from Google Photos
@@ -313,6 +318,19 @@ Properties:
 - Type:        string
 - Required:    false
 
+#### --gphotos-client-credentials
+
+Use client credentials OAuth flow.
+
+This will use the OAUTH2 client Credentials Flow as described in RFC 6749.
+
+Properties:
+
+- Config:      client_credentials
+- Env Var:     RCLONE_GPHOTOS_CLIENT_CREDENTIALS
+- Type:        bool
+- Default:     false
+
 #### --gphotos-read-size
 
 Set to read the size of media items.
@@ -363,6 +381,40 @@ Properties:
 - Env Var:     RCLONE_GPHOTOS_INCLUDE_ARCHIVED
 - Type:        bool
 - Default:     false
+
+#### --gphotos-proxy
+
+Use the gphotosdl proxy for downloading the full resolution images
+
+The Google API will deliver images and video which aren't full
+resolution, and/or have EXIF data missing.
+
+However if you use the gphotosdl proxy then you can download original,
+unchanged images.
+
+This runs a headless browser in the background.
+
+Download the software from [gphotosdl](https://github.com/rclone/gphotosdl)
+
+First run with
+
+    gphotosdl -login
+
+Then once you have logged into google photos close the browser window
+and run
+
+    gphotosdl
+
+Then supply the parameter `--gphotos-proxy "http://localhost:8282"` to make
+rclone use the proxy.
+
+
+Properties:
+
+- Config:      proxy
+- Env Var:     RCLONE_GPHOTOS_PROXY
+- Type:        string
+- Required:    false
 
 #### --gphotos-encoding
 
@@ -480,6 +532,11 @@ Only images and videos can be uploaded.  If you attempt to upload non
 videos or images or formats that Google Photos doesn't understand,
 rclone will upload the file, then Google Photos will give an error
 when it is put turned into a media item.
+
+**NB** From March 31, 2025 rclone can only download photos it
+uploaded. This limitation is due to policy changes at Google. You may
+need to run `rclone config reconnect remote:` to make rclone work
+again after upgrading to rclone v1.70.
 
 Note that all media items uploaded to Google Photos through the API
 are stored in full resolution at "original quality" and **will** count

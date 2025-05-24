@@ -1,20 +1,4 @@
-<div align="center">
-<sup>Special thanks to our sponsor:</sup>
-<br>
-<br>
-<a href="https://www.warp.dev/?utm_source=github&utm_medium=referral&utm_campaign=rclone_20231103">
-  <div>
-    <img src="https://rclone.org/img/logos/warp-github.svg" width="300" alt="Warp">
-  </div>
-  <b>Warp is a modern, Rust-based terminal with AI built in so you and your team can build great software, faster.</b>
-  <div>
-    <sup>Visit warp.dev to learn more.</sup>
-  </div>
-</a>
-<br>
-<hr>
-</div>
-<br>
+
 
 [<img src="https://rclone.org/img/logo_on_light__horizontal_color.svg" width="50%" alt="rclone logo">](https://rclone.org/#gh-light-mode-only)
 [<img src="https://rclone.org/img/logo_on_dark__horizontal_color.svg" width="50%" alt="rclone logo">](https://rclone.org/#gh-dark-mode-only)
@@ -66,6 +50,7 @@ Rclone *("rsync for cloud storage")* is a command-line program to sync files and
   * HiDrive [:page_facing_up:](https://rclone.org/hidrive/)
   * HTTP [:page_facing_up:](https://rclone.org/http/)
   * Huawei Cloud Object Storage Service(OBS) [:page_facing_up:](https://rclone.org/s3/#huawei-obs)
+  * iCloud Drive [:page_facing_up:](https://rclone.org/iclouddrive/)
   * ImageKit [:page_facing_up:](https://rclone.org/imagekit/)
   * Internet Archive [:page_facing_up:](https://rclone.org/internetarchive/)
   * Jottacloud [:page_facing_up:](https://rclone.org/jottacloud/)
@@ -92,6 +77,7 @@ Rclone *("rsync for cloud storage")* is a command-line program to sync files and
   * OpenStack Swift [:page_facing_up:](https://rclone.org/swift/)
   * Oracle Cloud Storage [:page_facing_up:](https://rclone.org/swift/)
   * Oracle Object Storage [:page_facing_up:](https://rclone.org/oracleobjectstorage/)
+  * Outscale [:page_facing_up:](https://rclone.org/s3/#outscale)
   * ownCloud [:page_facing_up:](https://rclone.org/webdav/#owncloud)
   * pCloud [:page_facing_up:](https://rclone.org/pcloud/)
   * Petabox [:page_facing_up:](https://rclone.org/s3/#petabox)
@@ -109,6 +95,7 @@ Rclone *("rsync for cloud storage")* is a command-line program to sync files and
   * Scaleway [:page_facing_up:](https://rclone.org/s3/#scaleway)
   * Seafile [:page_facing_up:](https://rclone.org/seafile/)
   * SeaweedFS [:page_facing_up:](https://rclone.org/s3/#seaweedfs)
+  * Selectel Object Storage [:page_facing_up:](https://rclone.org/s3/#selectel)
   * SFTP [:page_facing_up:](https://rclone.org/sftp/)
   * SMB / CIFS [:page_facing_up:](https://rclone.org/smb/)
   * StackPath [:page_facing_up:](https://rclone.org/s3/#stackpath)

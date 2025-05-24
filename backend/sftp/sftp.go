@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	iofs "io/fs"
+	"net/url"
 	"os"
 	"path"
 	"regexp"
@@ -99,6 +100,11 @@ Only PEM encrypted key files (old OpenSSH format) are supported. Encrypted keys
 in the new OpenSSH format can't be used.`,
 			IsPassword: true,
 			Sensitive:  true,
+		}, {
+			Name: "pubkey",
+			Help: `SSH public certificate for public certificate based authentication.
+Set this if you have a signed certificate you want to use for authentication.
+If specified will override pubkey_file.`,
 		}, {
 			Name: "pubkey_file",
 			Help: `Optional path to public key file.
@@ -478,6 +484,14 @@ Example:
 	`,
 			Advanced: true,
 		}, {
+			Name:    "http_proxy",
+			Default: "",
+			Help: `URL for HTTP CONNECT proxy
+
+Set this to a URL for an HTTP proxy which supports the HTTP CONNECT verb.
+`,
+			Advanced: true,
+		}, {
 			Name:    "copy_is_hardlink",
 			Default: false,
 			Help: `Set to enable server side copies using hardlinks.
@@ -511,6 +525,7 @@ type Options struct {
 	KeyPem                  string          `config:"key_pem"`
 	KeyFile                 string          `config:"key_file"`
 	KeyFilePass             string          `config:"key_file_pass"`
+	PubKey                  string          `config:"pubkey"`
 	PubKeyFile              string          `config:"pubkey_file"`
 	KnownHostsFile          string          `config:"known_hosts_file"`
 	KeyUseAgent             bool            `config:"key_use_agent"`
@@ -539,6 +554,7 @@ type Options struct {
 	HostKeyAlgorithms       fs.SpaceSepList `config:"host_key_algorithms"`
 	SSH                     fs.SpaceSepList `config:"ssh"`
 	SocksProxy              string          `config:"socks_proxy"`
+	HTTPProxy               string          `config:"http_proxy"`
 	CopyIsHardlink          bool            `config:"copy_is_hardlink"`
 }
 
@@ -564,6 +580,7 @@ type Fs struct {
 	savedpswd    string
 	sessions     atomic.Int32 // count in use sessions
 	tokens       *pacer.TokenDispenser
+	proxyURL     *url.URL // address of HTTP proxy read from environment
 }
 
 // Object is a remote SFTP file that has been stat'd (so it exists, but is not necessarily open for reading)
@@ -861,6 +878,15 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		opt.Port = "22"
 	}
 
+	// get proxy URL if set
+	if opt.HTTPProxy != "" {
+		proxyURL, err := url.Parse(opt.HTTPProxy)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse HTTP Proxy URL: %w", err)
+		}
+		f.proxyURL = proxyURL
+	}
+
 	sshConfig := &ssh.ClientConfig{
 		User:            opt.User,
 		Auth:            []ssh.AuthMethod{},
@@ -997,13 +1023,21 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		}
 
 		// If a public key has been specified then use that
-		if pubkeyFile != "" {
-			certfile, err := os.ReadFile(pubkeyFile)
-			if err != nil {
-				return nil, fmt.Errorf("unable to read cert file: %w", err)
+		if pubkeyFile != "" || opt.PubKey != "" {
+			pubKeyRaw := []byte(opt.PubKey)
+			// Use this error if public key is provided inline and is not a certificate
+			// if public key file is provided instead, use the err in the if block
+			notACertError := errors.New("public key provided is not a certificate: " + opt.PubKey)
+			if opt.PubKey == "" {
+				notACertError = errors.New("public key file is not a certificate file: " + pubkeyFile)
+				err := error(nil)
+				pubKeyRaw, err = os.ReadFile(pubkeyFile)
+				if err != nil {
+					return nil, fmt.Errorf("unable to read cert file: %w", err)
+				}
 			}
 
-			pk, _, _, _, err := ssh.ParseAuthorizedKey(certfile)
+			pk, _, _, _, err := ssh.ParseAuthorizedKey(pubKeyRaw)
 			if err != nil {
 				return nil, fmt.Errorf("unable to parse cert file: %w", err)
 			}
@@ -1017,7 +1051,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 			// knows everything it needs.
 			cert, ok := pk.(*ssh.Certificate)
 			if !ok {
-				return nil, errors.New("public key file is not a certificate file: " + pubkeyFile)
+				return nil, notACertError
 			}
 			pubsigner, err := ssh.NewCertSigner(cert, signer)
 			if err != nil {
@@ -2087,10 +2121,10 @@ func (file *objectReader) Read(p []byte) (n int, err error) {
 
 // Close a reader of a remote sftp file
 func (file *objectReader) Close() (err error) {
-	// Close the sftpFile - this will likely cause the WriteTo to error
-	err = file.sftpFile.Close()
 	// Close the pipeReader so writes to the pipeWriter fail
 	_ = file.pipeReader.Close()
+	// Close the sftpFile - this will likely cause the WriteTo to error
+	err = file.sftpFile.Close()
 	// Wait for the background process to finish
 	<-file.done
 	// Show connection no longer in use

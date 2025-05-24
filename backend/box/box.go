@@ -43,9 +43,9 @@ import (
 	"github.com/rclone/rclone/lib/jwtutil"
 	"github.com/rclone/rclone/lib/oauthutil"
 	"github.com/rclone/rclone/lib/pacer"
+	"github.com/rclone/rclone/lib/random"
 	"github.com/rclone/rclone/lib/rest"
 	"github.com/youmark/pkcs8"
-	"golang.org/x/oauth2"
 )
 
 const (
@@ -64,12 +64,10 @@ const (
 // Globals
 var (
 	// Description of how to auth for this app
-	oauthConfig = &oauth2.Config{
-		Scopes: nil,
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  "https://app.box.com/api/oauth2/authorize",
-			TokenURL: "https://app.box.com/api/oauth2/token",
-		},
+	oauthConfig = &oauthutil.Config{
+		Scopes:       nil,
+		AuthURL:      "https://app.box.com/api/oauth2/authorize",
+		TokenURL:     "https://app.box.com/api/oauth2/token",
 		ClientID:     rcloneClientID,
 		ClientSecret: obscure.MustReveal(rcloneEncryptedClientSecret),
 		RedirectURL:  oauthutil.RedirectURL,
@@ -239,8 +237,8 @@ func getClaims(boxConfig *api.ConfigJSON, boxSubType string) (claims *boxCustomC
 	return claims, nil
 }
 
-func getSigningHeaders(boxConfig *api.ConfigJSON) map[string]interface{} {
-	signingHeaders := map[string]interface{}{
+func getSigningHeaders(boxConfig *api.ConfigJSON) map[string]any {
+	signingHeaders := map[string]any{
 		"kid": boxConfig.BoxAppSettings.AppAuth.PublicKeyID,
 	}
 	return signingHeaders
@@ -256,8 +254,10 @@ func getQueryParams(boxConfig *api.ConfigJSON) map[string]string {
 }
 
 func getDecryptedPrivateKey(boxConfig *api.ConfigJSON) (key *rsa.PrivateKey, err error) {
-
 	block, rest := pem.Decode([]byte(boxConfig.BoxAppSettings.AppAuth.PrivateKey))
+	if block == nil {
+		return nil, errors.New("box: failed to PEM decode private key")
+	}
 	if len(rest) > 0 {
 		return nil, fmt.Errorf("box: extra data included in private key: %w", err)
 	}
@@ -619,7 +619,7 @@ func (f *Fs) CreateDir(ctx context.Context, pathID, leaf string) (newID string, 
 		return shouldRetry(ctx, resp, err)
 	})
 	if err != nil {
-		//fmt.Printf("...Error %v\n", err)
+		// fmt.Printf("...Error %v\n", err)
 		return "", err
 	}
 	// fmt.Printf("...Id %q\n", *info.Id)
@@ -964,6 +964,26 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object,
 	dstObj, leaf, directoryID, err := f.createObject(ctx, remote, srcObj.modTime, srcObj.size)
 	if err != nil {
 		return nil, err
+	}
+
+	// check if dest already exists
+	item, err := f.preUploadCheck(ctx, leaf, directoryID, src.Size())
+	if err != nil {
+		return nil, err
+	}
+	if item != nil { // dest already exists, need to copy to temp name and then move
+		tempSuffix := "-rclone-copy-" + random.String(8)
+		fs.Debugf(remote, "dst already exists, copying to temp name %v", remote+tempSuffix)
+		tempObj, err := f.Copy(ctx, src, remote+tempSuffix)
+		if err != nil {
+			return nil, err
+		}
+		fs.Debugf(remote+tempSuffix, "moving to real name %v", remote)
+		err = f.deleteObject(ctx, item.ID)
+		if err != nil {
+			return nil, err
+		}
+		return f.Move(ctx, tempObj, remote)
 	}
 
 	// Copy the object
@@ -1323,12 +1343,8 @@ func (f *Fs) changeNotifyRunner(ctx context.Context, notifyFunc func(string, fs.
 	nextStreamPosition = streamPosition
 
 	for {
-		limit := f.opt.ListChunk
-
 		// box only allows a max of 500 events
-		if limit > 500 {
-			limit = 500
-		}
+		limit := min(f.opt.ListChunk, 500)
 
 		opts := rest.Opts{
 			Method:     "GET",
