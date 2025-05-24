@@ -104,11 +104,11 @@ To copy a local directory to an WebDAV directory called backup
 ### Modification times and hashes
 
 Plain WebDAV does not support modified times.  However when used with
-Fastmail Files, Owncloud or Nextcloud rclone will support modified times.
+Fastmail Files, ownCloud or Nextcloud rclone will support modified times.
 
 Likewise plain WebDAV does not support hashes, however when used with
-Fastmail Files, Owncloud or Nextcloud rclone will support SHA1 and MD5 hashes.
-Depending on the exact version of Owncloud or Nextcloud hashes may
+Fastmail Files, ownCloud or Nextcloud rclone will support SHA1 and MD5 hashes.
+Depending on the exact version of ownCloud or Nextcloud hashes may
 appear on all objects, or only on objects which had a hash uploaded
 with them.
 
@@ -305,6 +305,29 @@ Properties:
 - Type:        string
 - Required:    false
 
+#### --webdav-auth-redirect
+
+Preserve authentication on redirect.
+
+If the server redirects rclone to a new domain when it is trying to
+read a file then normally rclone will drop the Authorization: header
+from the request.
+
+This is standard security practice to avoid sending your credentials
+to an unknown webserver.
+
+However this is desirable in some circumstances. If you are getting
+an error like "401 Unauthorized" when rclone is attempting to read
+files from the webdav server then you can try this option.
+
+
+Properties:
+
+- Config:      auth_redirect
+- Env Var:     RCLONE_WEBDAV_AUTH_REDIRECT
+- Type:        bool
+- Default:     false
+
 #### --webdav-description
 
 Description of the remote.
@@ -332,19 +355,28 @@ this as the password.
 
 Fastmail supports modified times using the `X-OC-Mtime` header.
 
-### Owncloud
+### ownCloud
 
 Click on the settings cog in the bottom right of the page and this
 will show the WebDAV URL that rclone needs in the config step.  It
 will look something like `https://example.com/remote.php/webdav/`.
 
-Owncloud supports modified times using the `X-OC-Mtime` header.
+ownCloud supports modified times using the `X-OC-Mtime` header.
 
 ### Nextcloud
 
-This is configured in an identical way to Owncloud.  Note that
+This is configured in an identical way to ownCloud.  Note that
 Nextcloud initially did not support streaming of files (`rcat`) whereas
-Owncloud did, but [this](https://github.com/nextcloud/nextcloud-snap/issues/365) seems to be fixed as of 2020-11-27 (tested with rclone v1.53.1 and Nextcloud Server v19).
+ownCloud did, but [this](https://github.com/nextcloud/nextcloud-snap/issues/365) seems to be fixed as of 2020-11-27 (tested with rclone v1.53.1 and Nextcloud Server v19).
+
+### ownCloud Infinite Scale
+
+The WebDAV URL for Infinite Scale can be found in the details panel of
+any space in Infinite Scale, if the display was enabled in the personal
+settings of the user through a checkbox there.
+
+Infinite Scale works with the chunking [tus](https://tus.io) upload protocol.
+The chunk size is currently fixed 10 MB.
 
 ### Sharepoint Online
 

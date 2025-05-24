@@ -95,11 +95,11 @@ seconds. If rclone is quit or dies with files that haven't been
 uploaded, these will be uploaded next time rclone is run with the same
 flags.
 
-If using `--vfs-cache-max-size` or `--vfs-cache-min-free-size` note
+If using `--vfs-cache-max-size` or `--vfs-cache-min-free-space` note
 that the cache may exceed these quotas for two reasons. Firstly
 because it is only checked every `--vfs-cache-poll-interval`. Secondly
 because open files cannot be evicted from the cache. When
-`--vfs-cache-max-size` or `--vfs-cache-min-free-size` is exceeded,
+`--vfs-cache-max-size` or `--vfs-cache-min-free-space` is exceeded,
 rclone will attempt to evict the least accessed files from the cache
 first. rclone will start with files that haven't been accessed for the
 longest. This cache flushing strategy is efficient and more relevant
@@ -303,6 +303,50 @@ modified files from the cache (the related global flag `--checkers` has no effec
 
     --transfers int  Number of file transfers to run in parallel (default 4)
 
+### Symlinks
+
+By default the VFS does not support symlinks. However this may be
+enabled with either of the following flags:
+
+    --links      Translate symlinks to/from regular files with a '.rclonelink' extension.
+    --vfs-links  Translate symlinks to/from regular files with a '.rclonelink' extension for the VFS
+
+As most cloud storage systems do not support symlinks directly, rclone
+stores the symlink as a normal file with a special extension. So a
+file which appears as a symlink `link-to-file.txt` would be stored on
+cloud storage as `link-to-file.txt.rclonelink` and the contents would
+be the path to the symlink destination.
+
+Note that `--links` enables symlink translation globally in rclone -
+this includes any backend which supports the concept (for example the
+local backend). `--vfs-links` just enables it for the VFS layer.
+
+This scheme is compatible with that used by the [local backend with the --local-links flag](/local/#symlinks-junction-points).
+
+The `--vfs-links` flag has been designed for `rclone mount`, `rclone
+nfsmount` and `rclone serve nfs`.
+
+It hasn't been tested with the other `rclone serve` commands yet.
+
+A limitation of the current implementation is that it expects the
+caller to resolve sub-symlinks. For example given this directory tree
+
+```
+.
+├── dir
+│   └── file.txt
+└── linked-dir -> dir
+```
+
+The VFS will correctly resolve `linked-dir` but not
+`linked-dir/file.txt`. This is not a problem for the tested commands
+but may be for other commands.
+
+**Note** that there is an outstanding issue with symlink support
+[issue #8245](https://github.com/rclone/rclone/issues/8245) with duplicate
+files being created when symlinks are moved into directories where
+there is a file of the same name (or vice versa).
+
 ### VFS Case Sensitivity
 
 Linux file systems are case-sensitive: two files can differ only
@@ -379,3 +423,43 @@ and compute the total used space itself.
 _WARNING._ Contrary to `rclone size`, this flag ignores filters so that the
 result is accurate. However, this is very inefficient and may cost lots of API
 calls resulting in extra charges. Use it as a last resort and only with caching.
+
+### VFS Metadata
+
+If you use the `--vfs-metadata-extension` flag you can get the VFS to
+expose files which contain the [metadata](/docs/#metadata) as a JSON
+blob. These files will not appear in the directory listing, but can be
+`stat`-ed and opened and once they have been they **will** appear in
+directory listings until the directory cache expires.
+
+Note that some backends won't create metadata unless you pass in the
+`--metadata` flag.
+
+For example, using `rclone mount` with `--metadata --vfs-metadata-extension .metadata`
+we get
+
+```
+$ ls -l /mnt/
+total 1048577
+-rw-rw-r-- 1 user user 1073741824 Mar  3 16:03 1G
+
+$ cat /mnt/1G.metadata
+{
+        "atime": "2025-03-04T17:34:22.317069787Z",
+        "btime": "2025-03-03T16:03:37.708253808Z",
+        "gid": "1000",
+        "mode": "100664",
+        "mtime": "2025-03-03T16:03:39.640238323Z",
+        "uid": "1000"
+}
+
+$ ls -l /mnt/
+total 1048578
+-rw-rw-r-- 1 user user 1073741824 Mar  3 16:03 1G
+-rw-rw-r-- 1 user user        185 Mar  3 16:03 1G.metadata
+```
+
+If the file has no metadata it will be returned as `{}` and if there
+is an error reading the metadata the error will be returned as
+`{"error":"error string"}`.
+

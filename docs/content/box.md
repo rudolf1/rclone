@@ -64,7 +64,7 @@ If not sure try Y. If Y failed, try N.
 y) Yes
 n) No
 y/n> y
-If your browser doesn't open automatically go to the following link: http://127.0.0.1:53682/auth
+If your browser doesn't open automatically go to the following link: http://127.0.0.1:53682/auth?state=XXXXXXXXXXXXXXXXXXXXXX
 Log in and authorize rclone for access
 Waiting for code...
 Got code
@@ -87,7 +87,7 @@ machine with no Internet browser available.
 Note that rclone runs a webserver on your local machine to collect the
 token as returned from Box. This only runs from the moment it opens
 your browser to the moment you get back the verification code.  This
-is on `http://127.0.0.1:53682/` and this it may require you to unblock
+is on `http://127.0.0.1:53682/` and this may require you to unblock
 it temporarily if you are running a host firewall.
 
 Once configured you can then use `rclone` like this,
@@ -383,6 +383,19 @@ Properties:
 - Env Var:     RCLONE_BOX_TOKEN_URL
 - Type:        string
 - Required:    false
+
+#### --box-client-credentials
+
+Use client credentials OAuth flow.
+
+This will use the OAUTH2 client Credentials Flow as described in RFC 6749.
+
+Properties:
+
+- Config:      client_credentials
+- Env Var:     RCLONE_BOX_CLIENT_CREDENTIALS
+- Type:        bool
+- Default:     false
 
 #### --box-root-folder-id
 

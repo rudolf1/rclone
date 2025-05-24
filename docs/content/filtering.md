@@ -465,10 +465,10 @@ flags with `--exclude`, `--exclude-from`, `--filter` or `--filter-from`,
 you must use include rules for all the files you want in the include
 statement. For more flexibility use the `--filter-from` flag.
 
-`--exclude-from` has no effect when combined with `--files-from` or
+`--include-from` has no effect when combined with `--files-from` or
 `--files-from-raw` flags.
 
-`--exclude-from` followed by `-` reads filter rules from standard input.
+`--include-from` followed by `-` reads filter rules from standard input.
 
 ### `--filter` - Add a file-filtering rule
 
@@ -505,6 +505,8 @@ processed in.
 Arrange the order of filter rules with the most restrictive first and
 work down.
 
+Lines starting with # or ; are ignored, and can be used to write comments. Inline comments are not supported. _Use `-vv --dump filters` to see how they appear in the final regexp._
+
 E.g. for `filter-file.txt`:
 
     # a sample filter rule file
@@ -512,6 +514,7 @@ E.g. for `filter-file.txt`:
     + *.jpg
     + *.png
     + file2.avi
+    - /dir/tmp/** # WARNING! This text will be treated as part of the path.
     - /dir/Trash/**
     + /dir/**
     # exclude everything else
@@ -558,6 +561,8 @@ Other filter flags (`--include`, `--include-from`, `--exclude`,
 `--files-from` expects a list of files as its input. Leading or
 trailing whitespace is stripped from the input lines. Lines starting
 with `#` or `;` are ignored.
+
+`--files-from` followed by `-` reads the list of files from standard input.
 
 Rclone commands with a `--files-from` flag traverse the remote,
 treating the names in `--files-from` as a set of filters.
@@ -712,6 +717,98 @@ E.g. `rclone ls remote: --min-age 2d` lists files on `remote:` of 2 days
 old or more.
 
 See [the time option docs](/docs/#time-option) for valid formats.
+
+### `--hash-filter` - Deterministically select a subset of files {#hash-filter}
+
+The `--hash-filter` flag enables selecting a deterministic subset of files, useful for:
+
+1. Running large sync operations across multiple machines.
+2. Checking a subset of files for bitrot.
+3. Any other operations where a sample of files is required.
+
+#### Syntax
+
+The flag takes two parameters expressed as a fraction:
+
+```
+--hash-filter K/N
+```
+
+- `N`: The total number of partitions (must be a positive integer).
+- `K`: The specific partition to select (an integer from `0` to `N`).
+
+For example:
+- `--hash-filter 1/3`: Selects the first third of the files.
+- `--hash-filter 2/3` and `--hash-filter 3/3`: Select the second and third partitions, respectively.
+
+Each partition is non-overlapping, ensuring all files are covered without duplication.
+
+#### Random Partition Selection
+
+Use `@` as `K` to randomly select a partition:
+
+```
+--hash-filter @/M
+```
+
+For example, `--hash-filter @/3` will randomly select a number between 0 and 2. This will stay constant across retries.
+
+#### How It Works
+
+- Rclone takes each file's full path, normalizes it to lowercase, and applies Unicode normalization.
+- It then hashes the normalized path into a 64 bit number.
+- The hash result is reduced modulo `N` to assign the file to a partition.
+- If the calculated partition does not match `K` the file is excluded.
+- Other filters may apply if the file is not excluded.
+
+**Important:** Rclone will traverse all directories to apply the filter.
+
+#### Usage Notes
+
+- Safe to use with `rclone sync`; source and destination selections will match.
+- **Do not** use with `--delete-excluded`, as this could delete unselected files.
+- Ignored if `--files-from` is used.
+
+#### Examples
+
+##### Dividing files into 4 partitions
+
+Assuming the current directory contains `file1.jpg` through `file9.jpg`:
+
+```
+$ rclone lsf --hash-filter 0/4 .
+file1.jpg
+file5.jpg
+
+$ rclone lsf --hash-filter 1/4 .
+file3.jpg
+file6.jpg
+file9.jpg
+
+$ rclone lsf --hash-filter 2/4 .
+file2.jpg
+file4.jpg
+
+$ rclone lsf --hash-filter 3/4 .
+file7.jpg
+file8.jpg
+
+$ rclone lsf --hash-filter 4/4 . # the same as --hash-filter 0/4
+file1.jpg
+file5.jpg
+```
+
+##### Syncing the first quarter of files
+
+```
+rclone sync --hash-filter 1/4 source:path destination:path
+```
+
+##### Checking a random 1% of files for integrity
+
+```
+rclone check --download --hash-filter @/100 source:path destination:path
+```
 
 ## Other flags
 

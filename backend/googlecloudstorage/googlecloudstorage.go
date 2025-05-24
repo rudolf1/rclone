@@ -35,7 +35,7 @@ import (
 	"github.com/rclone/rclone/fs/fserrors"
 	"github.com/rclone/rclone/fs/fshttp"
 	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/fs/walk"
+	"github.com/rclone/rclone/fs/list"
 	"github.com/rclone/rclone/lib/bucket"
 	"github.com/rclone/rclone/lib/encoder"
 	"github.com/rclone/rclone/lib/env"
@@ -60,14 +60,17 @@ const (
 	minSleep                    = 10 * time.Millisecond
 )
 
-// Description of how to auth for this app
-var storageConfig = &oauth2.Config{
-	Scopes:       []string{storage.DevstorageReadWriteScope},
-	Endpoint:     google.Endpoint,
-	ClientID:     rcloneClientID,
-	ClientSecret: obscure.MustReveal(rcloneEncryptedClientSecret),
-	RedirectURL:  oauthutil.RedirectURL,
-}
+var (
+	// Description of how to auth for this app
+	storageConfig = &oauthutil.Config{
+		Scopes:       []string{storage.DevstorageReadWriteScope},
+		AuthURL:      google.Endpoint.AuthURL,
+		TokenURL:     google.Endpoint.TokenURL,
+		ClientID:     rcloneClientID,
+		ClientSecret: obscure.MustReveal(rcloneEncryptedClientSecret),
+		RedirectURL:  oauthutil.RedirectURL,
+	}
+)
 
 // Register with Fs
 func init() {
@@ -842,7 +845,7 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 // of listing recursively that doing a directory traversal.
 func (f *Fs) ListR(ctx context.Context, dir string, callback fs.ListRCallback) (err error) {
 	bucket, directory := f.split(dir)
-	list := walk.NewListRHelper(callback)
+	list := list.NewHelper(callback)
 	listR := func(bucket, directory, prefix string, addBucket bool) error {
 		return f.list(ctx, bucket, directory, prefix, addBucket, true, func(remote string, object *storage.Object, isDirectory bool) error {
 			entry, err := f.itemToDirEntry(ctx, remote, object, isDirectory)

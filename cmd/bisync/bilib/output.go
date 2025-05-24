@@ -3,27 +3,22 @@ package bilib
 
 import (
 	"bytes"
-	"log"
+	"log/slog"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/sirupsen/logrus"
+	"github.com/rclone/rclone/fs/log"
 )
 
-// CaptureOutput runs a function capturing its output.
+// CaptureOutput runs a function capturing its output at log level INFO.
 func CaptureOutput(fun func()) []byte {
-	logSave := log.Writer()
-	logrusSave := logrus.StandardLogger().Writer()
-	defer func() {
-		err := logrusSave.Close()
-		if err != nil {
-			fs.Errorf(nil, "error closing logrusSave: %v", err)
-		}
-	}()
 	buf := &bytes.Buffer{}
-	log.SetOutput(buf)
-	logrus.SetOutput(buf)
+	oldLevel := log.Handler.SetLevel(slog.LevelInfo)
+	log.Handler.SetOutput(func(level slog.Level, text string) {
+		buf.WriteString(text)
+	})
+	defer func() {
+		log.Handler.ResetOutput()
+		log.Handler.SetLevel(oldLevel)
+	}()
 	fun()
-	log.SetOutput(logSave)
-	logrus.SetOutput(logrusSave)
 	return buf.Bytes()
 }
