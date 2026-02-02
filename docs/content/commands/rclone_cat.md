@@ -14,21 +14,15 @@ Sends any files to standard output.
 
 You can use it like this to output a single file
 
-```sh
-rclone cat remote:path/to/file
-```
+    rclone cat remote:path/to/file
 
 Or like this to output any file in dir or its subdirectories.
 
-```sh
-rclone cat remote:path/to/dir
-```
+    rclone cat remote:path/to/dir
 
 Or like this to output any .txt files in dir or its subdirectories.
 
-```sh
-rclone --include "*.txt" cat remote:path/to/dir
-```
+    rclone --include "*.txt" cat remote:path/to/dir
 
 Use the `--head` flag to print characters only at the start, `--tail` for
 the end and `--offset` and `--count` to print a section in the middle.
@@ -39,17 +33,14 @@ Use the `--separator` flag to print a separator value between files. Be sure to
 shell-escape special characters. For example, to print a newline between
 files, use:
 
-- bash:
+* bash:
 
-  ```sh
-  rclone --include "*.txt" --separator $'\n' cat remote:path/to/dir
-  ```
+      rclone --include "*.txt" --separator $'\n' cat remote:path/to/dir
 
-- powershell:
+* powershell:
 
-  ```powershell
-  rclone --include "*.txt" --separator "`n" cat remote:path/to/dir
-  ```
+      rclone --include "*.txt" --separator "`n" cat remote:path/to/dir
+
 
 ```
 rclone cat remote:path [flags]
@@ -74,7 +65,7 @@ See the [global flags page](/flags/) for global options not listed here.
 
 Flags for filtering directory listings
 
-```text
+```
       --delete-excluded                     Delete files on dest excluded from sync
       --exclude stringArray                 Exclude files matching pattern
       --exclude-from stringArray            Read file exclude patterns from file (use - to read from stdin)
@@ -83,7 +74,6 @@ Flags for filtering directory listings
       --files-from-raw stringArray          Read list of source-file names from file without any processing of lines (use - to read from stdin)
   -f, --filter stringArray                  Add a file filtering rule
       --filter-from stringArray             Read file filtering patterns from a file (use - to read from stdin)
-      --hash-filter string                  Partition filenames by hash k/n or randomly @/n
       --ignore-case                         Ignore case in filters (case insensitive)
       --include stringArray                 Include files matching pattern
       --include-from stringArray            Read file include patterns from file (use - to read from stdin)
@@ -104,17 +94,12 @@ Flags for filtering directory listings
 
 Flags for listing directories
 
-```text
+```
       --default-time Time   Time to show if modtime is unknown for files and directories (default 2000-01-01T00:00:00Z)
       --fast-list           Use recursive list if available; uses more memory but fewer transactions
 ```
 
 ## See Also
 
-<!-- markdownlint-capture -->
-<!-- markdownlint-disable ul-style line-length -->
-
 * [rclone](/commands/rclone/)	 - Show help for rclone commands, flags and backends.
 
-
-<!-- markdownlint-restore -->

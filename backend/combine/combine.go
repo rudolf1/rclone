@@ -187,6 +187,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (outFs fs
 	g, gCtx := errgroup.WithContext(ctx)
 	var mu sync.Mutex
 	for _, upstream := range opt.Upstreams {
+		upstream := upstream
 		g.Go(func() (err error) {
 			equal := strings.IndexRune(upstream, '=')
 			if equal < 0 {
@@ -240,21 +241,17 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (outFs fs
 		DirModTimeUpdatesOnWrite: true,
 		PartialUploads:           true,
 	}).Fill(ctx, f)
-	canMove, slowHash := true, false
+	canMove := true
 	for _, u := range f.upstreams {
 		features = features.Mask(ctx, u.f) // Mask all upstream fs
 		if !operations.CanServerSideMove(u.f) {
 			canMove = false
 		}
-		slowHash = slowHash || u.f.Features().SlowHash
 	}
 	// We can move if all remotes support Move or Copy
 	if canMove {
 		features.Move = f.Move
 	}
-
-	// If any of upstreams are SlowHash, propagate it
-	features.SlowHash = slowHash
 
 	// Enable ListR when upstreams either support ListR or is local
 	// But not when all upstreams are local
@@ -369,6 +366,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (outFs fs
 func (f *Fs) multithread(ctx context.Context, fn func(context.Context, *upstream) error) error {
 	g, gCtx := errgroup.WithContext(ctx)
 	for _, u := range f.upstreams {
+		u := u
 		g.Go(func() (err error) {
 			return fn(gCtx, u)
 		})
@@ -635,6 +633,7 @@ func (f *Fs) ChangeNotify(ctx context.Context, notifyFunc func(string, fs.EntryT
 	var uChans []chan time.Duration
 
 	for _, u := range f.upstreams {
+		u := u
 		if do := u.f.Features().ChangeNotify; do != nil {
 			ch := make(chan time.Duration)
 			uChans = append(uChans, ch)
@@ -859,7 +858,7 @@ func (f *Fs) ListP(ctx context.Context, dir string, callback fs.ListRCallback) e
 		}
 		return wrappedCallback(entries)
 	}
-	return listP(ctx, uRemote, wrappedCallback)
+	return listP(ctx, dir, wrappedCallback)
 }
 
 // ListR lists the objects and directories of the Fs starting

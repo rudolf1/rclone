@@ -5,16 +5,14 @@ set -e
 NAME=infinitescale
 USER=admin
 PASS=admin
-PORT=28639
-CONF_DIR=/tmp/ocis-config
-mkdir -p ${CONF_DIR}
-chmod 777 ${CONF_DIR} || true
+PORT=9200
 
 . $(dirname "$0")/docker.bash
 
 start() {
+
     docker run --rm --name $NAME \
-           -v ${CONF_DIR}:/etc/ocis \
+           -v $(pwd):/etc/ocis \
            -e "OCIS_INSECURE=true" \
            -e "IDM_ADMIN_PASSWORD=$PASS" \
            -e "OCIS_FORCE_CONFIG_OVERWRITE=true" \
@@ -30,7 +28,7 @@ start() {
            -e "IDM_ADMIN_PASSWORD=$PASS" \
            -e "OCIS_INSECURE=true" \
            -e "PROXY_ENABLE_BASIC_AUTH=true" \
-           -v ${CONF_DIR}:/etc/ocis \
+           -v $(pwd):/etc/ocis \
            -p 127.0.0.1:${PORT}:9200 \
            owncloud/ocis
     
@@ -40,7 +38,12 @@ start() {
     echo pass=$(rclone obscure $PASS)
     echo vendor=infinitescale
     echo _connect=127.0.0.1:${PORT}
-    echo _connect_delay=5s
+}
+
+stop() {
+    # Clean up the mess
+    docker stop infinitescale
+    rm -f ./ocis.yaml
 }
 
 . $(dirname "$0")/run.bash

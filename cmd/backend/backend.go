@@ -37,33 +37,26 @@ see the backend docs for definitions.
 
 You can discover what commands a backend implements by using
 
-` + "```console" + `
-rclone backend help remote:
-rclone backend help <backendname>
-` + "```" + `
+    rclone backend help remote:
+    rclone backend help <backendname>
 
 You can also discover information about the backend using (see
 [operations/fsinfo](/rc/#operations-fsinfo) in the remote control docs
 for more info).
 
-` + "```console" + `
-rclone backend features remote:
-` + "```" + `
+    rclone backend features remote:
 
 Pass options to the backend command with -o. This should be key=value or key, e.g.:
 
-` + "```console" + `
-rclone backend stats remote:path stats -o format=json -o long
-` + "```" + `
+    rclone backend stats remote:path stats -o format=json -o long
 
 Pass arguments to the backend by placing them on the end of the line
 
-` + "```console" + `
-rclone backend cleanup remote:path file1 file2 file3
-` + "```" + `
+    rclone backend cleanup remote:path file1 file2 file3
 
 Note to run these commands on a running backend then see
-[backend/command](/rc/#backend-command) in the rc docs.`,
+[backend/command](/rc/#backend-command) in the rc docs.
+`,
 	Annotations: map[string]string{
 		"versionIntroduced": "v1.52",
 		"groups":            "Important",
@@ -156,11 +149,9 @@ func showHelp(fsInfo *fs.RegInfo) error {
 	fmt.Printf("## Backend commands\n\n")
 	fmt.Printf(`Here are the commands specific to the %s backend.
 
-Run them with:
+Run them with
 
-`+"```console"+`
-rclone backend COMMAND remote:
-`+"```"+`
+    rclone backend COMMAND remote:
 
 The help below will explain what arguments each command takes.
 
@@ -174,7 +165,7 @@ These can be run on a running backend using the rc command
 	for _, cmd := range cmds {
 		fmt.Printf("### %s\n\n", cmd.Name)
 		fmt.Printf("%s\n\n", cmd.Short)
-		fmt.Printf("```console\nrclone backend %s remote: [options] [<arguments>+]\n```\n\n", cmd.Name)
+		fmt.Printf("    rclone backend %s remote: [options] [<arguments>+]\n\n", cmd.Name)
 		if cmd.Long != "" {
 			fmt.Printf("%s\n\n", cmd.Long)
 		}

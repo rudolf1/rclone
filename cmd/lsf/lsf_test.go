@@ -3,7 +3,6 @@ package lsf
 import (
 	"bytes"
 	"context"
-	"strings"
 	"testing"
 
 	_ "github.com/rclone/rclone/backend/local"
@@ -141,12 +140,12 @@ file3
 	require.NoError(t, err)
 
 	items, _ := list.DirSorted(context.Background(), f, true, "")
-	var expectedOutput strings.Builder
+	var expectedOutput string
 	for _, item := range items {
-		expectedOutput.WriteString(item.ModTime(context.Background()).Format("2006-01-02 15:04:05") + "\n")
+		expectedOutput += item.ModTime(context.Background()).Format("2006-01-02 15:04:05") + "\n"
 	}
 
-	assert.Equal(t, expectedOutput.String(), buf.String())
+	assert.Equal(t, expectedOutput, buf.String())
 
 	buf = new(bytes.Buffer)
 	format = "sp"

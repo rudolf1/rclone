@@ -73,18 +73,16 @@ var commandDefinition = &cobra.Command{
 
 For example
 
-` + "```text" + `
-$ rclone tree remote:path
-/
-├── file1
-├── file2
-├── file3
-└── subdir
-    ├── file4
-    └── file5
+    $ rclone tree remote:path
+    /
+    ├── file1
+    ├── file2
+    ├── file3
+    └── subdir
+        ├── file4
+        └── file5
 
-1 directories, 5 files
-` + "```" + `
+    1 directories, 5 files
 
 You can use any of the filtering options with the tree command (e.g.
 ` + "`--include` and `--exclude`" + `.  You can also use ` + "`--fast-list`" + `.
@@ -95,7 +93,8 @@ sizes with ` + "`--size`" + `.  Note that not all of them have
 short options as they conflict with rclone's short options.
 
 For a more interactive navigation of the remote see the
-[ncdu](/commands/rclone_ncdu/) command.`,
+[ncdu](/commands/rclone_ncdu/) command.
+`,
 	Annotations: map[string]string{
 		"versionIntroduced": "v1.38",
 		"groups":            "Filter,Listing",

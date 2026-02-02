@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/rclone/rclone/fs"
@@ -51,9 +50,6 @@ func (s *sshClientExternal) Close() error {
 func (s *sshClientExternal) NewSession() (sshSession, error) {
 	session := s.f.newSSHSessionExternal()
 	if s.session == nil {
-		// Store the first session so Wait() and Close() can use it
-		s.session = session
-	} else {
 		fs.Debugf(s.f, "ssh external: creating additional session")
 	}
 	return session, nil
@@ -80,8 +76,6 @@ type sshSessionExternal struct {
 	cancel      func()
 	startCalled bool
 	runningSFTP bool
-	waitOnce    sync.Once // ensure Wait() is only called once
-	waitErr     error     // result of the Wait() call
 }
 
 func (f *Fs) newSSHSessionExternal() *sshSessionExternal {
@@ -181,17 +175,16 @@ func (s *sshSessionExternal) exited() bool {
 
 // Wait for the command to exit
 func (s *sshSessionExternal) Wait() error {
-	// Use sync.Once to ensure we only wait for the process once.
-	// This is safe even if Wait() is called from multiple goroutines.
-	s.waitOnce.Do(func() {
-		s.waitErr = s.cmd.Wait()
-		if s.waitErr == nil {
-			fs.Debugf(s.f, "ssh external: command exited OK")
-		} else {
-			fs.Debugf(s.f, "ssh external: command exited with error: %v", s.waitErr)
-		}
-	})
-	return s.waitErr
+	if s.exited() {
+		return nil
+	}
+	err := s.cmd.Wait()
+	if err == nil {
+		fs.Debugf(s.f, "ssh external: command exited OK")
+	} else {
+		fs.Debugf(s.f, "ssh external: command exited with error: %v", err)
+	}
+	return err
 }
 
 // Run runs cmd on the remote host. Typically, the remote

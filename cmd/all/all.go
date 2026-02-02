@@ -5,10 +5,6 @@ import (
 	// Active commands
 	_ "github.com/rclone/rclone/cmd"
 	_ "github.com/rclone/rclone/cmd/about"
-	_ "github.com/rclone/rclone/cmd/archive"
-	_ "github.com/rclone/rclone/cmd/archive/create"
-	_ "github.com/rclone/rclone/cmd/archive/extract"
-	_ "github.com/rclone/rclone/cmd/archive/list"
 	_ "github.com/rclone/rclone/cmd/authorize"
 	_ "github.com/rclone/rclone/cmd/backend"
 	_ "github.com/rclone/rclone/cmd/bisync"
@@ -19,7 +15,6 @@ import (
 	_ "github.com/rclone/rclone/cmd/cleanup"
 	_ "github.com/rclone/rclone/cmd/cmount"
 	_ "github.com/rclone/rclone/cmd/config"
-	_ "github.com/rclone/rclone/cmd/convmv"
 	_ "github.com/rclone/rclone/cmd/copy"
 	_ "github.com/rclone/rclone/cmd/copyto"
 	_ "github.com/rclone/rclone/cmd/copyurl"

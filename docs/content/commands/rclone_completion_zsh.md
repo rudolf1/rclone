@@ -16,21 +16,18 @@ Generates a zsh autocompletion script for rclone.
 This writes to /usr/share/zsh/vendor-completions/_rclone by default so will
 probably need to be run with sudo or as root, e.g.
 
-```console
-sudo rclone completion zsh
-```
+    sudo rclone completion zsh
 
 Logout and login again to use the autocompletion scripts, or source
 them directly
 
-```console
-autoload -U compinit && compinit
-```
+    autoload -U compinit && compinit
 
 If you supply a command line argument the script will be written
 there.
 
 If output_file is "-", then the output will be written to stdout.
+
 
 ```
 rclone completion zsh [output_file] [flags]
@@ -46,10 +43,5 @@ See the [global flags page](/flags/) for global options not listed here.
 
 ## See Also
 
-<!-- markdownlint-capture -->
-<!-- markdownlint-disable ul-style line-length -->
-
 * [rclone completion](/commands/rclone_completion/)	 - Output completion script for a given shell.
 
-
-<!-- markdownlint-restore -->

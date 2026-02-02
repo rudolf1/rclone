@@ -46,7 +46,8 @@ func main() {
 	var remoteNames []string
 	for _, r := range remotes {
 		remoteNames = append(remoteNames, r.Remote)
-		for k := range *r.ControlCharacters {
+		for k, v := range *r.ControlCharacters {
+			v.Text = k
 			quoted := strconv.Quote(k)
 			charsMap[k] = quoted[1 : len(quoted)-1]
 		}

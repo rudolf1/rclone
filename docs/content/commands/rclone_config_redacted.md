@@ -20,6 +20,8 @@ This makes the config file suitable for posting online for support.
 
 It should be double checked before posting as the redaction may not be perfect.
 
+
+
 ```
 rclone config redacted [<remote>] [flags]
 ```
@@ -34,10 +36,5 @@ See the [global flags page](/flags/) for global options not listed here.
 
 ## See Also
 
-<!-- markdownlint-capture -->
-<!-- markdownlint-disable ul-style line-length -->
-
 * [rclone config](/commands/rclone_config/)	 - Enter an interactive configuration session.
 
-
-<!-- markdownlint-restore -->

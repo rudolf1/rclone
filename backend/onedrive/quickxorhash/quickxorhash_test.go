@@ -172,8 +172,8 @@ func BenchmarkQuickXorHash(b *testing.B) {
 	require.NoError(b, err)
 	require.Equal(b, len(buf), n)
 	h := New()
-
-	for b.Loop() {
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
 		h.Reset()
 		h.Write(buf)
 		h.Sum(nil)

@@ -212,7 +212,7 @@ type dirMap map[string]struct{}
 // Create a dirMap from a string
 func newDirMap(dirString string) (dm dirMap) {
 	dm = make(dirMap)
-	for entry := range strings.SplitSeq(dirString, "|") {
+	for _, entry := range strings.Split(dirString, "|") {
 		if entry != "" {
 			dm[entry] = struct{}{}
 		}

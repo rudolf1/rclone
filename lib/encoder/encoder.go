@@ -151,8 +151,8 @@ func init() {
 	alias("Dot", EncodeDot)
 }
 
-// ValidStrings returns all the valid MultiEncoder strings
-func ValidStrings() string {
+// validStrings returns all the valid MultiEncoder strings
+func validStrings() string {
 	var out []string
 	for k := range nameToEncoding {
 		out = append(out, k)
@@ -184,15 +184,15 @@ func (mask MultiEncoder) String() string {
 // Set converts a string into a MultiEncoder
 func (mask *MultiEncoder) Set(in string) error {
 	var out MultiEncoder
-	parts := strings.SplitSeq(in, ",")
-	for part := range parts {
+	parts := strings.Split(in, ",")
+	for _, part := range parts {
 		part = strings.TrimSpace(part)
 		if bits, ok := nameToEncoding[part]; ok {
 			out |= bits
 		} else {
 			i, err := strconv.ParseUint(part, 0, 0)
 			if err != nil {
-				return fmt.Errorf("bad encoding %q: possible values are: %s", part, ValidStrings())
+				return fmt.Errorf("bad encoding %q: possible values are: %s", part, validStrings())
 			}
 			out |= MultiEncoder(i)
 		}
@@ -313,7 +313,8 @@ func (mask MultiEncoder) Encode(in string) string {
 			}
 			if mask.Has(EncodeAsterisk) { // *
 				switch r {
-				case '*', '＊':
+				case '*',
+					'＊':
 					return true
 				}
 			}
@@ -345,55 +346,64 @@ func (mask MultiEncoder) Encode(in string) string {
 			}
 			if mask.Has(EncodeQuestion) { // ?
 				switch r {
-				case '?', '？':
+				case '?',
+					'？':
 					return true
 				}
 			}
 			if mask.Has(EncodeColon) { // :
 				switch r {
-				case ':', '：':
+				case ':',
+					'：':
 					return true
 				}
 			}
 			if mask.Has(EncodePipe) { // |
 				switch r {
-				case '|', '｜':
+				case '|',
+					'｜':
 					return true
 				}
 			}
 			if mask.Has(EncodeDoubleQuote) { // "
 				switch r {
-				case '"', '＂':
+				case '"',
+					'＂':
 					return true
 				}
 			}
 			if mask.Has(EncodeSingleQuote) { // '
 				switch r {
-				case '\'', '＇':
+				case '\'',
+					'＇':
 					return true
 				}
 			}
 			if mask.Has(EncodeBackQuote) { // `
 				switch r {
-				case '`', '｀':
+				case '`',
+					'｀':
 					return true
 				}
 			}
 			if mask.Has(EncodeDollar) { // $
 				switch r {
-				case '$', '＄':
+				case '$',
+					'＄':
 					return true
 				}
 			}
 			if mask.Has(EncodeSlash) { // /
 				switch r {
-				case '/', '／':
+				case '/',
+					'／':
 					return true
 				}
 			}
 			if mask.Has(EncodeBackSlash) { // \
 				switch r {
-				case '\\', '＼':
+				case '\\',
+					'＼':
 					return true
 				}
 			}
@@ -406,13 +416,15 @@ func (mask MultiEncoder) Encode(in string) string {
 			}
 			if mask.Has(EncodeHash) { // #
 				switch r {
-				case '#', '＃':
+				case '#',
+					'＃':
 					return true
 				}
 			}
 			if mask.Has(EncodePercent) { // %
 				switch r {
-				case '%', '％':
+				case '%',
+					'％':
 					return true
 				}
 			}
@@ -1170,7 +1182,6 @@ func appendQuotedBytes(w io.Writer, s string) {
 		_, _ = fmt.Fprintf(w, string(QuoteRune)+"%02X", b)
 	}
 }
-
 func appendUnquotedByte(w io.Writer, s string) bool {
 	if len(s) < 2 {
 		return false
@@ -1191,15 +1202,12 @@ func (identity) Decode(in string) string { return in }
 func (i identity) FromStandardPath(s string) string {
 	return FromStandardPath(i, s)
 }
-
 func (i identity) FromStandardName(s string) string {
 	return FromStandardName(i, s)
 }
-
 func (i identity) ToStandardPath(s string) string {
 	return ToStandardPath(i, s)
 }
-
 func (i identity) ToStandardName(s string) string {
 	return ToStandardName(i, s)
 }

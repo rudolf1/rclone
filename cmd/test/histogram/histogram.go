@@ -26,7 +26,8 @@ var commandDefinition = &cobra.Command{
 in filenames in the remote:path specified.
 
 The data doesn't contain any identifying information but is useful for
-the rclone developers when developing filename compression.`,
+the rclone developers when developing filename compression.
+`,
 	Annotations: map[string]string{
 		"versionIntroduced": "v1.55",
 	},

@@ -11,7 +11,6 @@ import (
 	"github.com/rclone/rclone/fs/fspath"
 	"github.com/rclone/rclone/fs/list"
 	"github.com/rclone/rclone/fs/operations"
-	"github.com/rclone/rclone/fstest/runs"
 )
 
 // MatchTestRemote matches the remote names used for testing (copied
@@ -20,7 +19,7 @@ import (
 var MatchTestRemote = regexp.MustCompile(`^rclone-test-[abcdefghijklmnopqrstuvwxyz0123456789]{12,24}(_segments)?$`)
 
 // cleanFs runs a single clean fs for left over directories
-func cleanFs(ctx context.Context, remote string, cleanup bool, Opt runs.RunOpt) error {
+func cleanFs(ctx context.Context, remote string, cleanup bool) error {
 	f, err := fs.NewFs(context.Background(), remote)
 	if err != nil {
 		return err
@@ -42,7 +41,7 @@ func cleanFs(ctx context.Context, remote string, cleanup bool, Opt runs.RunOpt) 
 		dirPath := dir.Remote()
 		fullPath := fspath.JoinRootPath(remote, dirPath)
 		if MatchTestRemote.MatchString(dirPath) {
-			if Opt.DryRun {
+			if *dryRun {
 				fs.Logf(nil, "Not Purging %s - -dry-run", fullPath)
 				return nil
 			}
@@ -71,12 +70,12 @@ func cleanFs(ctx context.Context, remote string, cleanup bool, Opt runs.RunOpt) 
 }
 
 // cleanRemotes cleans the list of remotes passed in
-func cleanRemotes(conf *runs.Config, Opt runs.RunOpt) error {
+func cleanRemotes(conf *Config) error {
 	var lastError error
 	for _, backend := range conf.Backends {
 		remote := backend.Remote
 		fs.Logf(nil, "%q - Cleaning", remote)
-		err := cleanFs(context.Background(), remote, backend.CleanUp, Opt)
+		err := cleanFs(context.Background(), remote, backend.CleanUp)
 		if err != nil {
 			lastError = err
 			fs.Logf(nil, "Failed to purge %q: %v", remote, err)

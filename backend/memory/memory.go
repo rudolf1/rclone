@@ -6,7 +6,6 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"path"
@@ -25,8 +24,7 @@ import (
 var (
 	hashType = hash.MD5
 	// the object storage is persistent
-	buckets      = newBucketsInfo()
-	errWriteOnly = errors.New("can't read when using --memory-discard")
+	buckets = newBucketsInfo()
 )
 
 // Register with Fs
@@ -35,32 +33,12 @@ func init() {
 		Name:        "memory",
 		Description: "In memory object storage system.",
 		NewFs:       NewFs,
-		Options: []fs.Option{{
-			Name:     "discard",
-			Default:  false,
-			Advanced: true,
-			Help: `If set all writes will be discarded and reads will return an error
-
-If set then when files are uploaded the contents not be saved. The
-files will appear to have been uploaded but will give an error on
-read. Files will have their MD5 sum calculated on upload which takes
-very little CPU time and allows the transfers to be checked.
-
-This can be useful for testing performance.
-
-Probably most easily used by using the connection string syntax:
-
-    :memory,discard:bucket
-
-`,
-		}},
+		Options:     []fs.Option{},
 	})
 }
 
 // Options defines the configuration for this backend
-type Options struct {
-	Discard bool `config:"discard"`
-}
+type Options struct{}
 
 // Fs represents a remote memory server
 type Fs struct {
@@ -186,7 +164,6 @@ type objectData struct {
 	hash     string
 	mimeType string
 	data     []byte
-	size     int64
 }
 
 // Object describes a memory object
@@ -348,12 +325,13 @@ func (f *Fs) list(ctx context.Context, bucket, directory, prefix string, addBuck
 }
 
 // listDir lists the bucket to the entries
-func (f *Fs) listDir(ctx context.Context, bucket, directory, prefix string, addBucket bool, callback func(fs.DirEntry) error) (err error) {
+func (f *Fs) listDir(ctx context.Context, bucket, directory, prefix string, addBucket bool) (entries fs.DirEntries, err error) {
 	// List the objects and directories
 	err = f.list(ctx, bucket, directory, prefix, addBucket, false, func(remote string, entry fs.DirEntry, isDirectory bool) error {
-		return callback(entry)
+		entries = append(entries, entry)
+		return nil
 	})
-	return err
+	return entries, err
 }
 
 // listBuckets lists the buckets to entries
@@ -376,46 +354,15 @@ func (f *Fs) listBuckets(ctx context.Context) (entries fs.DirEntries, err error)
 // This should return ErrDirNotFound if the directory isn't
 // found.
 func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err error) {
-	return list.WithListP(ctx, dir, f)
-}
-
-// ListP lists the objects and directories of the Fs starting
-// from dir non recursively into out.
-//
-// dir should be "" to start from the root, and should not
-// have trailing slashes.
-//
-// This should return ErrDirNotFound if the directory isn't
-// found.
-//
-// It should call callback for each tranche of entries read.
-// These need not be returned in any particular order.  If
-// callback returns an error then the listing will stop
-// immediately.
-func (f *Fs) ListP(ctx context.Context, dir string, callback fs.ListRCallback) error {
-	list := list.NewHelper(callback)
+	// defer fslog.Trace(dir, "")("entries = %q, err = %v", &entries, &err)
 	bucket, directory := f.split(dir)
 	if bucket == "" {
 		if directory != "" {
-			return fs.ErrorListBucketRequired
+			return nil, fs.ErrorListBucketRequired
 		}
-		entries, err := f.listBuckets(ctx)
-		if err != nil {
-			return err
-		}
-		for _, entry := range entries {
-			err = list.Add(entry)
-			if err != nil {
-				return err
-			}
-		}
-	} else {
-		err := f.listDir(ctx, bucket, directory, f.rootDirectory, f.rootBucket == "", list.Add)
-		if err != nil {
-			return err
-		}
+		return f.listBuckets(ctx)
 	}
-	return list.Flush()
+	return f.listDir(ctx, bucket, directory, f.rootDirectory, f.rootBucket == "")
 }
 
 // ListR lists the objects and directories of the Fs starting
@@ -581,7 +528,7 @@ func (o *Object) Hash(ctx context.Context, t hash.Type) (string, error) {
 	if t != hashType {
 		return "", hash.ErrUnsupported
 	}
-	if o.od.hash == "" && !o.fs.opt.Discard {
+	if o.od.hash == "" {
 		sum := md5.Sum(o.od.data)
 		o.od.hash = hex.EncodeToString(sum[:])
 	}
@@ -590,7 +537,7 @@ func (o *Object) Hash(ctx context.Context, t hash.Type) (string, error) {
 
 // Size returns the size of an object in bytes
 func (o *Object) Size() int64 {
-	return o.od.size
+	return int64(len(o.od.data))
 }
 
 // ModTime returns the modification time of the object
@@ -616,9 +563,6 @@ func (o *Object) Storable() bool {
 
 // Open an object for read
 func (o *Object) Open(ctx context.Context, options ...fs.OpenOption) (in io.ReadCloser, err error) {
-	if o.fs.opt.Discard {
-		return nil, errWriteOnly
-	}
 	var offset, limit int64 = 0, -1
 	for _, option := range options {
 		switch x := option.(type) {
@@ -650,24 +594,13 @@ func (o *Object) Open(ctx context.Context, options ...fs.OpenOption) (in io.Read
 // The new object may have been created if an error is returned
 func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (err error) {
 	bucket, bucketPath := o.split()
-	var data []byte
-	var size int64
-	var hash string
-	if o.fs.opt.Discard {
-		h := md5.New()
-		size, err = io.Copy(h, in)
-		hash = hex.EncodeToString(h.Sum(nil))
-	} else {
-		data, err = io.ReadAll(in)
-		size = int64(len(data))
-	}
+	data, err := io.ReadAll(in)
 	if err != nil {
 		return fmt.Errorf("failed to update memory object: %w", err)
 	}
 	o.od = &objectData{
 		data:     data,
-		size:     size,
-		hash:     hash,
+		hash:     "",
 		modTime:  src.ModTime(ctx),
 		mimeType: fs.MimeType(ctx, src),
 	}
@@ -696,7 +629,6 @@ var (
 	_ fs.Copier      = &Fs{}
 	_ fs.PutStreamer = &Fs{}
 	_ fs.ListRer     = &Fs{}
-	_ fs.ListPer     = &Fs{}
 	_ fs.Object      = &Object{}
 	_ fs.MimeTyper   = &Object{}
 )

@@ -153,7 +153,7 @@ func TestRun(t *testing.T) {
 		fs.Fatal(nil, "error generating test private key "+privateKeyErr.Error())
 	}
 	publicKey, publicKeyError := ssh.NewPublicKey(&privateKey.PublicKey)
-	if publicKeyError != nil {
+	if privateKeyErr != nil {
 		fs.Fatal(nil, "error generating test public key "+publicKeyError.Error())
 	}
 

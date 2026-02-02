@@ -125,7 +125,7 @@ var Command = &cobra.Command{
 	Use:   "nfs remote:path",
 	Short: `Serve the remote as an NFS mount`,
 	Long: strings.ReplaceAll(`Create an NFS server that serves the given remote over the network.
-
+	
 This implements an NFSv3 server to serve any rclone remote via NFS.
 
 The primary purpose for this command is to enable the [mount
@@ -179,16 +179,12 @@ cache.
 
 To serve NFS over the network use following command:
 
-|||sh
-rclone serve nfs remote: --addr 0.0.0.0:$PORT --vfs-cache-mode=full
-|||
+    rclone serve nfs remote: --addr 0.0.0.0:$PORT --vfs-cache-mode=full
 
 This specifies a port that can be used in the mount command. To mount
 the server under Linux/macOS, use the following command:
-
-|||sh
-mount -t nfs -o port=$PORT,mountport=$PORT,tcp $HOSTNAME:/ path/to/mountpoint
-|||
+    
+    mount -t nfs -o port=$PORT,mountport=$PORT,tcp $HOSTNAME:/ path/to/mountpoint
 
 Where |$PORT| is the same port number used in the |serve nfs| command
 and |$HOSTNAME| is the network address of the machine that |serve nfs|
@@ -202,7 +198,7 @@ is desired.
 
 This command is only available on Unix platforms.
 
-`, "|", "`") + strings.TrimSpace(vfs.Help()),
+`, "|", "`") + vfs.Help(),
 	Annotations: map[string]string{
 		"versionIntroduced": "v1.65",
 		"groups":            "Filter",

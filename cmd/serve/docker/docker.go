@@ -59,7 +59,7 @@ func init() {
 var Command = &cobra.Command{
 	Use:   "docker",
 	Short: `Serve any remote on docker's volume plugin API.`,
-	Long:  help() + strings.TrimSpace(vfs.Help()),
+	Long:  help() + vfs.Help(),
 	Annotations: map[string]string{
 		"versionIntroduced": "v1.56",
 		"groups":            "Filter",

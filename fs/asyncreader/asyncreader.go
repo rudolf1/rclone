@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/lib/pool"
@@ -15,8 +16,10 @@ import (
 
 const (
 	// BufferSize is the default size of the async buffer
-	BufferSize       = pool.BufferSize
-	softStartInitial = 4 * 1024
+	BufferSize           = 1024 * 1024
+	softStartInitial     = 4 * 1024
+	bufferCacheSize      = 64              // max number of buffers to keep in cache
+	bufferCacheFlushTime = 5 * time.Second // flush the cached buffers after this long
 )
 
 // ErrorStreamAbandoned is returned when the input is closed before the end of the stream
@@ -39,7 +42,6 @@ type AsyncReader struct {
 	closed  bool           // whether we have closed the underlying stream
 	mu      sync.Mutex     // lock for Read/WriteTo/Abandon/Close
 	ci      *fs.ConfigInfo // for reading config
-	pool    *pool.Pool     // pool to get memory from
 }
 
 // New returns a reader that will asynchronously read from
@@ -56,8 +58,7 @@ func New(ctx context.Context, rd io.ReadCloser, buffers int) (*AsyncReader, erro
 		return nil, errors.New("nil reader supplied")
 	}
 	a := &AsyncReader{
-		ci:   fs.GetConfig(ctx),
-		pool: pool.Global(),
+		ci: fs.GetConfig(ctx),
 	}
 	a.init(rd, buffers)
 	return a, nil
@@ -103,16 +104,24 @@ func (a *AsyncReader) init(rd io.ReadCloser, buffers int) {
 	}()
 }
 
+// bufferPool is a global pool of buffers
+var bufferPool *pool.Pool
+var bufferPoolOnce sync.Once
+
 // return the buffer to the pool (clearing it)
 func (a *AsyncReader) putBuffer(b *buffer) {
-	a.pool.Put(b.buf)
+	bufferPool.Put(b.buf)
 	b.buf = nil
 }
 
 // get a buffer from the pool
 func (a *AsyncReader) getBuffer() *buffer {
+	bufferPoolOnce.Do(func() {
+		// Initialise the buffer pool when used
+		bufferPool = pool.New(bufferCacheFlushTime, BufferSize, bufferCacheSize, a.ci.UseMmap)
+	})
 	return &buffer{
-		buf: a.pool.Get(),
+		buf: bufferPool.Get(),
 	}
 }
 

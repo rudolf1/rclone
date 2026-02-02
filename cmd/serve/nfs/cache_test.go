@@ -66,6 +66,7 @@ func testCacheCRUD(t *testing.T, h *Handler, c Cache, fileName string) {
 func testCacheThrashDifferent(t *testing.T, h *Handler, c Cache) {
 	var wg sync.WaitGroup
 	for i := range 100 {
+		i := i
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -124,6 +125,7 @@ func TestCache(t *testing.T) {
 	}()
 	billyFS := &FS{nil} // place holder billyFS
 	for _, cacheType := range []handleCache{cacheMemory, cacheDisk, cacheSymlink} {
+		cacheType := cacheType
 		t.Run(cacheType.String(), func(t *testing.T) {
 			h := &Handler{
 				vfs:     vfs.New(object.MemoryFs, nil),

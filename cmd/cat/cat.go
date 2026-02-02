@@ -43,21 +43,15 @@ var commandDefinition = &cobra.Command{
 
 You can use it like this to output a single file
 
-|||sh
-rclone cat remote:path/to/file
-|||
+    rclone cat remote:path/to/file
 
 Or like this to output any file in dir or its subdirectories.
 
-|||sh
-rclone cat remote:path/to/dir
-|||
+    rclone cat remote:path/to/dir
 
 Or like this to output any .txt files in dir or its subdirectories.
 
-|||sh
-rclone --include "*.txt" cat remote:path/to/dir
-|||
+    rclone --include "*.txt" cat remote:path/to/dir
 
 Use the |--head| flag to print characters only at the start, |--tail| for
 the end and |--offset| and |--count| to print a section in the middle.
@@ -68,17 +62,14 @@ Use the |--separator| flag to print a separator value between files. Be sure to
 shell-escape special characters. For example, to print a newline between
 files, use:
 
-- bash:
+* bash:
 
-  |||sh
-  rclone --include "*.txt" --separator $'\n' cat remote:path/to/dir
-  |||
+      rclone --include "*.txt" --separator $'\n' cat remote:path/to/dir
 
-- powershell:
+* powershell:
 
-  |||powershell
-  rclone --include "*.txt" --separator "|n" cat remote:path/to/dir
-  |||`, "|", "`"),
+      rclone --include "*.txt" --separator "|n" cat remote:path/to/dir
+`, "|", "`"),
 	Annotations: map[string]string{
 		"versionIntroduced": "v1.33",
 		"groups":            "Filter,Listing",

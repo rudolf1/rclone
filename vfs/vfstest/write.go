@@ -5,7 +5,6 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/rclone/rclone/vfs"
 	"github.com/rclone/rclone/vfs/vfscommon"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -111,9 +110,6 @@ func TestWriteFileDup(t *testing.T) {
 
 	var dupFd uintptr
 	dupFd, err = writeTestDup(fh.Fd())
-	if err == vfs.ENOSYS {
-		t.Skip("dup not supported on this platform")
-	}
 	require.NoError(t, err)
 
 	dupFile := os.NewFile(dupFd, fh.Name())

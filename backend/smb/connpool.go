@@ -38,7 +38,7 @@ func (f *Fs) dial(ctx context.Context, network, addr string) (*conn, error) {
 
 	d := &smb2.Dialer{}
 	if f.opt.UseKerberos {
-		cl, err := NewKerberosFactory().GetClient(f.opt.KerberosCCache)
+		cl, err := getKerberosClient()
 		if err != nil {
 			return nil, err
 		}

@@ -85,9 +85,9 @@ func testConfigFile(t *testing.T, options []fs.Option, configFileName string) fu
 
 // makeReadLine makes a simple readLine which returns a fixed list of
 // strings
-func makeReadLine(answers []string) func(string) string {
+func makeReadLine(answers []string) func() string {
 	i := 0
-	return func(string) string {
+	return func() string {
 		i++
 		return answers[i-1]
 	}

@@ -1,4 +1,4 @@
-//go:build cmount && ((linux && cgo) || (darwin && cgo) || (freebsd && cgo) || (openbsd && cgo) || windows)
+//go:build cmount && ((linux && cgo) || (darwin && cgo) || (freebsd && cgo) || windows)
 
 // Package cmount implements a FUSE mounting system for rclone remotes.
 //
@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/rclone/rclone/cmd/mountlib"
@@ -59,14 +58,12 @@ func mountOptions(VFS *vfs.VFS, device string, mountpoint string, opt *mountlib.
 	} else {
 		options = append(options, "-o", "fsname="+device)
 		options = append(options, "-o", "subtype=rclone")
-		if runtime.GOOS != "openbsd" {
-			options = append(options, "-o", fmt.Sprintf("max_readahead=%d", opt.MaxReadAhead))
-			// This causes FUSE to supply O_TRUNC with the Open
-			// call which is more efficient for cmount.  However
-			// it does not work with cgofuse on Windows with
-			// WinFSP so cmount must work with or without it.
-			options = append(options, "-o", "atomic_o_trunc")
-		}
+		options = append(options, "-o", fmt.Sprintf("max_readahead=%d", opt.MaxReadAhead))
+		// This causes FUSE to supply O_TRUNC with the Open
+		// call which is more efficient for cmount.  However
+		// it does not work with cgofuse on Windows with
+		// WinFSP so cmount must work with or without it.
+		options = append(options, "-o", "atomic_o_trunc")
 		if opt.DaemonTimeout != 0 {
 			options = append(options, "-o", fmt.Sprintf("daemon_timeout=%d", int(time.Duration(opt.DaemonTimeout).Seconds())))
 		}
@@ -152,11 +149,7 @@ func mount(VFS *vfs.VFS, mountPath string, opt *mountlib.Options) (<-chan error,
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				err := fmt.Errorf("mount failed: %v", r)
-				if strings.Contains(strings.ToLower(err.Error()), "cannot find winfsp") {
-					err = fmt.Errorf("%w\nHint: Install WinFsp from https://winfsp.dev/rel/", err)
-				}
-				errChan <- err
+				errChan <- fmt.Errorf("mount failed: %v", r)
 			}
 		}()
 		var err error

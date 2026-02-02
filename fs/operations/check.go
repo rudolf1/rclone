@@ -249,7 +249,7 @@ func (c *checkMarch) reportResults(ctx context.Context, err error) error {
 		fs.Logf(c.opt.Fsrc, "%d %s missing", c.srcFilesMissing.Load(), entity)
 	}
 
-	fs.Logf(c.opt.Fdst, "%d differences found", c.differences.Load())
+	fs.Logf(c.opt.Fdst, "%d differences found", accounting.Stats(ctx).GetErrors())
 	if errs := accounting.Stats(ctx).GetErrors(); errs > 0 {
 		fs.Logf(c.opt.Fdst, "%d errors while checking", errs)
 	}
@@ -296,8 +296,8 @@ func Check(ctx context.Context, opt *CheckOpt) error {
 // CheckEqualReaders checks to see if in1 and in2 have the same
 // content when read.
 //
-// it returns true if no differences were found
-func CheckEqualReaders(in1, in2 io.Reader) (equal bool, err error) {
+// it returns true if differences were found
+func CheckEqualReaders(in1, in2 io.Reader) (differ bool, err error) {
 	const bufSize = 64 * 1024
 	buf1 := make([]byte, bufSize)
 	buf2 := make([]byte, bufSize)
@@ -306,42 +306,42 @@ func CheckEqualReaders(in1, in2 io.Reader) (equal bool, err error) {
 		n2, err2 := readers.ReadFill(in2, buf2)
 		// check errors
 		if err1 != nil && err1 != io.EOF {
-			return false, err1
+			return true, err1
 		} else if err2 != nil && err2 != io.EOF {
-			return false, err2
+			return true, err2
 		}
 		// err1 && err2 are nil or io.EOF here
 		// process the data
 		if n1 != n2 || !bytes.Equal(buf1[:n1], buf2[:n2]) {
-			return false, nil
+			return true, nil
 		}
 		// if both streams finished the we have finished
 		if err1 == io.EOF && err2 == io.EOF {
 			break
 		}
 	}
-	return true, nil
+	return false, nil
 }
 
 // CheckIdenticalDownload checks to see if dst and src are identical
 // by reading all their bytes if necessary.
 //
-// it returns true if no differences were found
-func CheckIdenticalDownload(ctx context.Context, src, dst fs.Object) (equal bool, err error) {
+// it returns true if differences were found
+func CheckIdenticalDownload(ctx context.Context, dst, src fs.Object) (differ bool, err error) {
 	ci := fs.GetConfig(ctx)
 	err = Retry(ctx, src, ci.LowLevelRetries, func() error {
-		equal, err = checkIdenticalDownload(ctx, src, dst)
+		differ, err = checkIdenticalDownload(ctx, dst, src)
 		return err
 	})
-	return equal, err
+	return differ, err
 }
 
 // Does the work for CheckIdenticalDownload
-func checkIdenticalDownload(ctx context.Context, src, dst fs.Object) (equal bool, err error) {
+func checkIdenticalDownload(ctx context.Context, dst, src fs.Object) (differ bool, err error) {
 	var in1, in2 io.ReadCloser
 	in1, err = Open(ctx, dst)
 	if err != nil {
-		return false, fmt.Errorf("failed to open %q: %w", dst, err)
+		return true, fmt.Errorf("failed to open %q: %w", dst, err)
 	}
 	tr1 := accounting.Stats(ctx).NewTransfer(dst, nil)
 	defer func() {
@@ -351,7 +351,7 @@ func checkIdenticalDownload(ctx context.Context, src, dst fs.Object) (equal bool
 
 	in2, err = Open(ctx, src)
 	if err != nil {
-		return false, fmt.Errorf("failed to open %q: %w", src, err)
+		return true, fmt.Errorf("failed to open %q: %w", src, err)
 	}
 	tr2 := accounting.Stats(ctx).NewTransfer(dst, nil)
 	defer func() {
@@ -360,7 +360,7 @@ func checkIdenticalDownload(ctx context.Context, src, dst fs.Object) (equal bool
 	in2 = tr2.Account(ctx, in2).WithBuffer() // account and buffer the transfer
 
 	// To assign err variable before defer.
-	equal, err = CheckEqualReaders(in1, in2)
+	differ, err = CheckEqualReaders(in1, in2)
 	return
 }
 
@@ -368,17 +368,12 @@ func checkIdenticalDownload(ctx context.Context, src, dst fs.Object) (equal bool
 // and the actual contents of the files.
 func CheckDownload(ctx context.Context, opt *CheckOpt) error {
 	optCopy := *opt
-	optCopy.Check = func(ctx context.Context, dst, src fs.Object) (differ bool, noHash bool, err error) {
-		same, err := CheckIdenticalDownload(ctx, src, dst)
+	optCopy.Check = func(ctx context.Context, a, b fs.Object) (differ bool, noHash bool, err error) {
+		differ, err = CheckIdenticalDownload(ctx, a, b)
 		if err != nil {
 			return true, true, fmt.Errorf("failed to download: %w", err)
 		}
-		if !same {
-			err = errors.New("contents differ")
-			fs.Errorf(src, "%v", err)
-			return true, false, nil
-		}
-		return false, false, nil
+		return differ, false, nil
 	}
 	return CheckFn(ctx, &optCopy)
 }

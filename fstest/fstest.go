@@ -25,7 +25,6 @@ import (
 	"github.com/rclone/rclone/fs/config"
 	"github.com/rclone/rclone/fs/config/configfile"
 	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/fs/log"
 	"github.com/rclone/rclone/fs/walk"
 	"github.com/rclone/rclone/fstest/testy"
 	"github.com/rclone/rclone/lib/random"
@@ -65,9 +64,6 @@ func Initialise() {
 	if envConfig := os.Getenv("RCLONE_CONFIG"); envConfig != "" {
 		_ = config.SetConfigPath(envConfig)
 	}
-	if *RemoteName == "local" {
-		*RemoteName = ""
-	}
 	configfile.Install()
 	accounting.Start(ctx)
 	if *Verbose {
@@ -81,8 +77,6 @@ func Initialise() {
 	}
 	ci.LowLevelRetries = *LowLevelRetries
 	ci.UseListR = *UseListR
-	log.InitLogging()
-	_ = fs.LogReload(ci)
 }
 
 // Item represents an item for checking
@@ -485,9 +479,7 @@ func RandomRemote() (fs.Fs, string, func(), error) {
 //
 // It logs errors rather than returning them
 func Purge(f fs.Fs) {
-	// Create a stats group here so errors in the cleanup don't
-	// interfere with the global stats.
-	ctx := accounting.WithStatsGroup(context.Background(), "test-cleanup")
+	ctx := context.Background()
 	var err error
 	doFallbackPurge := true
 	if doPurge := f.Features().Purge; doPurge != nil {

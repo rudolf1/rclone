@@ -158,11 +158,11 @@ func (d Duration) readableString(maxNumberOfUnits int) string {
 		return "0s"
 	}
 
-	var readableString strings.Builder
+	readableString := ""
 
 	// Check for minus durations.
 	if d < 0 {
-		readableString.WriteString("-")
+		readableString += "-"
 	}
 
 	duration := time.Duration(math.Abs(float64(d)))
@@ -205,14 +205,14 @@ func (d Duration) readableString(maxNumberOfUnits int) string {
 		if v == 0 {
 			continue
 		}
-		readableString.WriteString(strval + u)
+		readableString += strval + u
 		numberOfUnits++
 		if maxNumberOfUnits > 0 && numberOfUnits >= maxNumberOfUnits {
 			break
 		}
 	}
 
-	return readableString.String()
+	return readableString
 }
 
 // Set a Duration

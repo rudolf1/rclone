@@ -3,7 +3,6 @@ package proxy
 import (
 	"bufio"
 	"crypto/tls"
-	"encoding/base64"
 	"fmt"
 	"net"
 	"net/http"
@@ -56,13 +55,7 @@ func HTTPConnectDial(network, addr string, proxyURL *url.URL, proxyDialer proxy.
 	}
 
 	// send CONNECT
-	user := proxyURL.User
-	if user != nil {
-		credential := base64.StdEncoding.EncodeToString([]byte(user.String()))
-		_, err = fmt.Fprintf(conn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\nProxy-Authorization: Basic %s\r\n\r\n", addr, addr, credential)
-	} else {
-		_, err = fmt.Fprintf(conn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", addr, addr)
-	}
+	_, err = fmt.Fprintf(conn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", addr, addr)
 	if err != nil {
 		_ = conn.Close()
 		return nil, fmt.Errorf("HTTP CONNECT proxy failed to send CONNECT: %q", err)

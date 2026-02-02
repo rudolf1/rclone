@@ -793,7 +793,7 @@ func (f *Fs) About(ctx context.Context) (usage *fs.Usage, err error) {
 		return nil, err
 	}
 	usage = &fs.Usage{
-		Used: fs.NewUsageValue(info.SpaceUsed),
+		Used: fs.NewUsageValue(int64(info.SpaceUsed)),
 	}
 	return usage, nil
 }

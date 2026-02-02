@@ -16,13 +16,12 @@ The `password` should be passed in in clear (unobscured).
 
 For example, to set password of a remote of name myremote you would do:
 
-```sh
-rclone config password myremote fieldname mypassword
-rclone config password myremote fieldname=mypassword
-```
+    rclone config password myremote fieldname mypassword
+    rclone config password myremote fieldname=mypassword
 
 This command is obsolete now that "config update" and "config create"
 both support obscuring passwords directly.
+
 
 ```
 rclone config password name [key value]+ [flags]
@@ -38,10 +37,5 @@ See the [global flags page](/flags/) for global options not listed here.
 
 ## See Also
 
-<!-- markdownlint-capture -->
-<!-- markdownlint-disable ul-style line-length -->
-
 * [rclone config](/commands/rclone_config/)	 - Enter an interactive configuration session.
 
-
-<!-- markdownlint-restore -->

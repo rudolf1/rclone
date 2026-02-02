@@ -21,21 +21,18 @@ var fishCommandDefinition = &cobra.Command{
 This writes to /etc/fish/completions/rclone.fish by default so will
 probably need to be run with sudo or as root, e.g.
 
-` + "```console" + `
-sudo rclone completion fish
-` + "```" + `
+    sudo rclone completion fish
 
 Logout and login again to use the autocompletion scripts, or source
 them directly
 
-` + "```console" + `
-. /etc/fish/completions/rclone.fish
-` + "```" + `
+    . /etc/fish/completions/rclone.fish
 
 If you supply a command line argument the script will be written
 there.
 
-If output_file is "-", then the output will be written to stdout.`,
+If output_file is "-", then the output will be written to stdout.
+`,
 	Run: func(command *cobra.Command, args []string) {
 		cmd.CheckArgs(0, 1, command, args)
 		out := "/etc/fish/completions/rclone.fish"

@@ -47,7 +47,6 @@ import (
 	"github.com/rclone/rclone/fs/config/obscure"
 	"github.com/rclone/rclone/fs/fserrors"
 	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/fs/list"
 	"github.com/rclone/rclone/fs/operations"
 	"github.com/rclone/rclone/lib/batcher"
 	"github.com/rclone/rclone/lib/encoder"
@@ -835,7 +834,7 @@ func (f *Fs) NewObject(ctx context.Context, remote string) (fs.Object, error) {
 
 // listSharedFolders lists all available shared folders mounted and not mounted
 // we'll need the id later so we have to return them in original format
-func (f *Fs) listSharedFolders(ctx context.Context, callback func(fs.DirEntry) error) (err error) {
+func (f *Fs) listSharedFolders(ctx context.Context) (entries fs.DirEntries, err error) {
 	started := false
 	var res *sharing.ListFoldersResult
 	for {
@@ -848,7 +847,7 @@ func (f *Fs) listSharedFolders(ctx context.Context, callback func(fs.DirEntry) e
 				return shouldRetry(ctx, err)
 			})
 			if err != nil {
-				return err
+				return nil, err
 			}
 			started = true
 		} else {
@@ -860,15 +859,15 @@ func (f *Fs) listSharedFolders(ctx context.Context, callback func(fs.DirEntry) e
 				return shouldRetry(ctx, err)
 			})
 			if err != nil {
-				return fmt.Errorf("list continue: %w", err)
+				return nil, fmt.Errorf("list continue: %w", err)
 			}
 		}
 		for _, entry := range res.Entries {
 			leaf := f.opt.Enc.ToStandardName(entry.Name)
 			d := fs.NewDir(leaf, time.Time{}).SetID(entry.SharedFolderId)
-			err = callback(d)
+			entries = append(entries, d)
 			if err != nil {
-				return err
+				return nil, err
 			}
 		}
 		if res.Cursor == "" {
@@ -876,25 +875,21 @@ func (f *Fs) listSharedFolders(ctx context.Context, callback func(fs.DirEntry) e
 		}
 	}
 
-	return nil
+	return entries, nil
 }
 
 // findSharedFolder find the id for a given shared folder name
 // somewhat annoyingly there is no endpoint to query a shared folder by it's name
 // so our only option is to iterate over all shared folders
 func (f *Fs) findSharedFolder(ctx context.Context, name string) (id string, err error) {
-	errFoundFile := errors.New("found file")
-	err = f.listSharedFolders(ctx, func(entry fs.DirEntry) error {
-		if entry.(*fs.Dir).Remote() == name {
-			id = entry.(*fs.Dir).ID()
-			return errFoundFile
-		}
-		return nil
-	})
-	if errors.Is(err, errFoundFile) {
-		return id, nil
-	} else if err != nil {
+	entries, err := f.listSharedFolders(ctx)
+	if err != nil {
 		return "", err
+	}
+	for _, entry := range entries {
+		if entry.(*fs.Dir).Remote() == name {
+			return entry.(*fs.Dir).ID(), nil
+		}
 	}
 	return "", fs.ErrorDirNotFound
 }
@@ -913,7 +908,7 @@ func (f *Fs) mountSharedFolder(ctx context.Context, id string) error {
 
 // listReceivedFiles lists shared the user as access to (note this means individual
 // files not files contained in shared folders)
-func (f *Fs) listReceivedFiles(ctx context.Context, callback func(fs.DirEntry) error) (err error) {
+func (f *Fs) listReceivedFiles(ctx context.Context) (entries fs.DirEntries, err error) {
 	started := false
 	var res *sharing.ListFilesResult
 	for {
@@ -926,7 +921,7 @@ func (f *Fs) listReceivedFiles(ctx context.Context, callback func(fs.DirEntry) e
 				return shouldRetry(ctx, err)
 			})
 			if err != nil {
-				return err
+				return nil, err
 			}
 			started = true
 		} else {
@@ -938,7 +933,7 @@ func (f *Fs) listReceivedFiles(ctx context.Context, callback func(fs.DirEntry) e
 				return shouldRetry(ctx, err)
 			})
 			if err != nil {
-				return fmt.Errorf("list continue: %w", err)
+				return nil, fmt.Errorf("list continue: %w", err)
 			}
 		}
 		for _, entry := range res.Entries {
@@ -951,33 +946,26 @@ func (f *Fs) listReceivedFiles(ctx context.Context, callback func(fs.DirEntry) e
 				modTime: *entry.TimeInvited,
 			}
 			if err != nil {
-				return err
+				return nil, err
 			}
-			err = callback(o)
-			if err != nil {
-				return err
-			}
+			entries = append(entries, o)
 		}
 		if res.Cursor == "" {
 			break
 		}
 	}
-	return nil
+	return entries, nil
 }
 
 func (f *Fs) findSharedFile(ctx context.Context, name string) (o *Object, err error) {
-	errFoundFile := errors.New("found file")
-	err = f.listReceivedFiles(ctx, func(entry fs.DirEntry) error {
-		if entry.(*Object).remote == name {
-			o = entry.(*Object)
-			return errFoundFile
-		}
-		return nil
-	})
-	if errors.Is(err, errFoundFile) {
-		return o, nil
-	} else if err != nil {
+	files, err := f.listReceivedFiles(ctx)
+	if err != nil {
 		return nil, err
+	}
+	for _, entry := range files {
+		if entry.(*Object).remote == name {
+			return entry.(*Object), nil
+		}
 	}
 	return nil, fs.ErrorObjectNotFound
 }
@@ -992,37 +980,11 @@ func (f *Fs) findSharedFile(ctx context.Context, name string) (o *Object, err er
 // This should return ErrDirNotFound if the directory isn't
 // found.
 func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err error) {
-	return list.WithListP(ctx, dir, f)
-}
-
-// ListP lists the objects and directories of the Fs starting
-// from dir non recursively into out.
-//
-// dir should be "" to start from the root, and should not
-// have trailing slashes.
-//
-// This should return ErrDirNotFound if the directory isn't
-// found.
-//
-// It should call callback for each tranche of entries read.
-// These need not be returned in any particular order.  If
-// callback returns an error then the listing will stop
-// immediately.
-func (f *Fs) ListP(ctx context.Context, dir string, callback fs.ListRCallback) (err error) {
-	list := list.NewHelper(callback)
 	if f.opt.SharedFiles {
-		err := f.listReceivedFiles(ctx, list.Add)
-		if err != nil {
-			return err
-		}
-		return list.Flush()
+		return f.listReceivedFiles(ctx)
 	}
 	if f.opt.SharedFolders {
-		err := f.listSharedFolders(ctx, list.Add)
-		if err != nil {
-			return err
-		}
-		return list.Flush()
+		return f.listSharedFolders(ctx)
 	}
 
 	root := f.slashRoot
@@ -1052,7 +1014,7 @@ func (f *Fs) ListP(ctx context.Context, dir string, callback fs.ListRCallback) (
 						err = fs.ErrorDirNotFound
 					}
 				}
-				return err
+				return nil, err
 			}
 			started = true
 		} else {
@@ -1064,7 +1026,7 @@ func (f *Fs) ListP(ctx context.Context, dir string, callback fs.ListRCallback) (
 				return shouldRetry(ctx, err)
 			})
 			if err != nil {
-				return fmt.Errorf("list continue: %w", err)
+				return nil, fmt.Errorf("list continue: %w", err)
 			}
 		}
 		for _, entry := range res.Entries {
@@ -1089,20 +1051,14 @@ func (f *Fs) ListP(ctx context.Context, dir string, callback fs.ListRCallback) (
 			remote := path.Join(dir, leaf)
 			if folderInfo != nil {
 				d := fs.NewDir(remote, time.Time{}).SetID(folderInfo.Id)
-				err = list.Add(d)
-				if err != nil {
-					return err
-				}
+				entries = append(entries, d)
 			} else if fileInfo != nil {
 				o, err := f.newObjectWithInfo(ctx, remote, fileInfo)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if o.(*Object).exportType.listable() {
-					err = list.Add(o)
-					if err != nil {
-						return err
-					}
+					entries = append(entries, o)
 				}
 			}
 		}
@@ -1110,7 +1066,7 @@ func (f *Fs) ListP(ctx context.Context, dir string, callback fs.ListRCallback) (
 			break
 		}
 	}
-	return list.Flush()
+	return entries, nil
 }
 
 // Put the object
@@ -1330,16 +1286,6 @@ func (f *Fs) Move(ctx context.Context, src fs.Object, remote string) (fs.Object,
 	var result *files.RelocationResult
 	err = f.pacer.Call(func() (bool, error) {
 		result, err = f.srv.MoveV2(&arg)
-		switch e := err.(type) {
-		case files.MoveV2APIError:
-			// There seems to be a bit of eventual consistency here which causes this to
-			// fail on just created objects
-			// See: https://github.com/rclone/rclone/issues/8881
-			if e.EndpointError != nil && e.EndpointError.FromLookup != nil && e.EndpointError.FromLookup.Tag == files.LookupErrorNotFound {
-				fs.Debugf(srcObj, "Retrying move on %v error", err)
-				return true, err
-			}
-		}
 		return shouldRetry(ctx, err)
 	})
 	if err != nil {
@@ -1500,9 +1446,9 @@ func (f *Fs) About(ctx context.Context) (usage *fs.Usage, err error) {
 		}
 	}
 	usage = &fs.Usage{
-		Total: fs.NewUsageValue(total),        // quota of bytes that can be used
-		Used:  fs.NewUsageValue(used),         // bytes in use
-		Free:  fs.NewUsageValue(total - used), // bytes which can be uploaded before reaching the quota
+		Total: fs.NewUsageValue(int64(total)),        // quota of bytes that can be used
+		Used:  fs.NewUsageValue(int64(used)),         // bytes in use
+		Free:  fs.NewUsageValue(int64(total - used)), // bytes which can be uploaded before reaching the quota
 	}
 	return usage, nil
 }
@@ -2141,7 +2087,6 @@ var (
 	_ fs.Mover        = (*Fs)(nil)
 	_ fs.PublicLinker = (*Fs)(nil)
 	_ fs.DirMover     = (*Fs)(nil)
-	_ fs.ListPer      = (*Fs)(nil)
 	_ fs.Abouter      = (*Fs)(nil)
 	_ fs.Shutdowner   = &Fs{}
 	_ fs.Object       = (*Object)(nil)

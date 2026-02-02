@@ -15,6 +15,7 @@ Output completion script for a given shell.
 Generates a shell completion script for rclone.
 Run with `--help` to list the supported shells.
 
+
 ## Options
 
 ```
@@ -25,14 +26,9 @@ See the [global flags page](/flags/) for global options not listed here.
 
 ## See Also
 
-<!-- markdownlint-capture -->
-<!-- markdownlint-disable ul-style line-length -->
-
 * [rclone](/commands/rclone/)	 - Show help for rclone commands, flags and backends.
 * [rclone completion bash](/commands/rclone_completion_bash/)	 - Output bash completion script for rclone.
 * [rclone completion fish](/commands/rclone_completion_fish/)	 - Output fish completion script for rclone.
 * [rclone completion powershell](/commands/rclone_completion_powershell/)	 - Output powershell completion script for rclone.
 * [rclone completion zsh](/commands/rclone_completion_zsh/)	 - Output zsh completion script for rclone.
 
-
-<!-- markdownlint-restore -->

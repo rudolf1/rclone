@@ -3,7 +3,6 @@ package s3
 import (
 	"context"
 	"encoding/hex"
-	"errors"
 	"io"
 	"os"
 	"path"
@@ -46,10 +45,6 @@ func getFileHashByte(node any, hashType hash.Type) []byte {
 }
 
 func getFileHash(node any, hashType hash.Type) string {
-	if hashType == hash.None {
-		return ""
-	}
-
 	var o fs.Object
 
 	switch b := node.(type) {
@@ -126,14 +121,15 @@ func rmdirRecursive(p string, VFS *vfs.VFS) {
 	}
 }
 
-func authlistResolver(list []string) (map[string]string, error) {
+func authlistResolver(list []string) map[string]string {
 	authList := make(map[string]string)
 	for _, v := range list {
 		parts := strings.Split(v, ",")
 		if len(parts) != 2 {
-			return nil, errors.New("invalid auth pair: expecting a single comma")
+			fs.Infof(nil, "Ignored: invalid auth pair %s", v)
+			continue
 		}
 		authList[parts[0]] = parts[1]
 	}
-	return authList, nil
+	return authList
 }

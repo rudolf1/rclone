@@ -400,7 +400,7 @@ type quirks struct {
 }
 
 func (q *quirks) parseQuirks(option string) {
-	for flag := range strings.SplitSeq(option, ",") {
+	for _, flag := range strings.Split(option, ",") {
 		switch strings.ToLower(strings.TrimSpace(flag)) {
 		case "binlist":
 			// The official client sometimes uses a so called "bin" protocol,
@@ -634,7 +634,7 @@ func (f *Fs) readItemMetaData(ctx context.Context, path string) (entry fs.DirEnt
 	return
 }
 
-// itemToDirEntry converts API item to rclone directory entry
+// itemToEntry converts API item to rclone directory entry
 // The dirSize return value is:
 //
 //	<0 - for a file or in case of error
@@ -1770,7 +1770,7 @@ func (f *Fs) parseSpeedupPatterns(patternString string) (err error) {
 	f.speedupAny = false
 	uniqueValidPatterns := make(map[string]any)
 
-	for pattern := range strings.SplitSeq(patternString, ",") {
+	for _, pattern := range strings.Split(patternString, ",") {
 		pattern = strings.ToLower(strings.TrimSpace(pattern))
 		if pattern == "" {
 			continue

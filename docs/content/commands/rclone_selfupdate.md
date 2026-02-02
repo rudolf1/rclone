@@ -57,8 +57,9 @@ command will rename the old executable to 'rclone.old.exe' upon success.
 
 Please note that this command was not available before rclone version 1.55.
 If it fails for you with the message `unknown command "selfupdate"` then
-you will need to update manually following the
-[install documentation](https://rclone.org/install/).
+you will need to update manually following the install instructions located
+at https://rclone.org/install/
+
 
 ```
 rclone selfupdate [flags]
@@ -80,10 +81,5 @@ See the [global flags page](/flags/) for global options not listed here.
 
 ## See Also
 
-<!-- markdownlint-capture -->
-<!-- markdownlint-disable ul-style line-length -->
-
 * [rclone](/commands/rclone/)	 - Show help for rclone commands, flags and backends.
 
-
-<!-- markdownlint-restore -->

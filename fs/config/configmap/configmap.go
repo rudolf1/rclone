@@ -136,11 +136,9 @@ func (c Simple) Set(key, value string) {
 	c[key] = value
 }
 
-// string the map value the same way the config parser does, but with
+// String the map value the same way the config parser does, but with
 // sorted keys for reproducibility.
-//
-// If human is set then use fewer quotes.
-func (c Simple) string(human bool) string {
+func (c Simple) String() string {
 	var ks = make([]string, 0, len(c))
 	for k := range c {
 		ks = append(ks, k)
@@ -152,39 +150,18 @@ func (c Simple) string(human bool) string {
 			out.WriteRune(',')
 		}
 		out.WriteString(k)
-		v := c[k]
-		if human && v == "true" {
-			continue
-		}
 		out.WriteRune('=')
-		if !human || strings.ContainsAny(v, `'":=,`) {
-			out.WriteRune('\'')
-			for _, ch := range v {
+		out.WriteRune('\'')
+		for _, ch := range c[k] {
+			out.WriteRune(ch)
+			// Escape ' as ''
+			if ch == '\'' {
 				out.WriteRune(ch)
-				// Escape ' as ''
-				if ch == '\'' {
-					out.WriteRune(ch)
-				}
 			}
-			out.WriteRune('\'')
-		} else {
-			out.WriteString(v)
 		}
+		out.WriteRune('\'')
 	}
 	return out.String()
-}
-
-// Human converts the map value the same way the config parser does,
-// but with sorted keys for reproducibility. This does it in human
-// readable form with fewer quotes.
-func (c Simple) Human() string {
-	return c.string(true)
-}
-
-// String the map value the same way the config parser does, but with
-// sorted keys for reproducibility.
-func (c Simple) String() string {
-	return c.string(false)
 }
 
 // Encode from c into a string suitable for putting on the command line

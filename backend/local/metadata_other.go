@@ -1,4 +1,4 @@
-//go:build dragonfly || plan9 || js || aix
+//go:build dragonfly || plan9 || js
 
 package local
 

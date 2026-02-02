@@ -20,7 +20,7 @@ const (
 var (
 	errInvalidCharacters = errors.New("config name contains invalid characters - may only contain numbers, letters, `_`, `-`, `.`, `+`, `@` and space, while not start with `-` or space, and not end with space")
 	errCantBeEmpty       = errors.New("can't use empty string as a path")
-	errBadConfigParam    = errors.New("config parameters may only contain `0-9`, `A-Z`, `a-z`, `_` and `.`")
+	errBadConfigParam    = errors.New("config parameters may only contain `0-9`, `A-Z`, `a-z` and `_`")
 	errEmptyConfigParam  = errors.New("config parameters can't be empty")
 	errConfigNameEmpty   = errors.New("config name can't be empty")
 	errConfigName        = errors.New("config name needs a trailing `:`")
@@ -79,8 +79,7 @@ func isConfigParam(c rune) bool {
 	return ((c >= 'a' && c <= 'z') ||
 		(c >= 'A' && c <= 'Z') ||
 		(c >= '0' && c <= '9') ||
-		c == '_' ||
-		c == '.')
+		c == '_')
 }
 
 // Parsed is returned from Parse with the results of the connection string decomposition

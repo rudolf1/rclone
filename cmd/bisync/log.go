@@ -6,7 +6,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/lib/encoder"
@@ -68,15 +67,10 @@ func quotePath(path string) string {
 }
 
 // Colors controls whether terminal colors are enabled
-var (
-	Colors     bool
-	ColorsLock sync.Mutex
-)
+var Colors bool
 
 // Color handles terminal colors for bisync
 func Color(style string, s string) string {
-	ColorsLock.Lock()
-	defer ColorsLock.Unlock()
 	if !Colors {
 		return s
 	}
@@ -86,8 +80,6 @@ func Color(style string, s string) string {
 
 // ColorX handles terminal colors for bisync
 func ColorX(style string, s string) string {
-	ColorsLock.Lock()
-	defer ColorsLock.Unlock()
 	if !Colors {
 		return s
 	}

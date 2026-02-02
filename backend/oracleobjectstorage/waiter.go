@@ -60,6 +60,9 @@ type StateChangeConf struct {
 func (conf *StateChangeConf) WaitForStateContext(ctx context.Context, entityType string) (any, error) {
 	// fs.Debugf(entityType, "Waiting for state to become: %s", conf.Target)
 
+	notfoundTick := 0
+	targetOccurrence := 0
+
 	// Set a default for times to check for not found
 	if conf.NotFoundChecks == 0 {
 		conf.NotFoundChecks = 20
@@ -81,11 +84,9 @@ func (conf *StateChangeConf) WaitForStateContext(ctx context.Context, entityType
 	// cancellation channel for the refresh loop
 	cancelCh := make(chan struct{})
 
-	go func() {
-		notfoundTick := 0
-		targetOccurrence := 0
-		result := Result{}
+	result := Result{}
 
+	go func() {
 		defer close(resCh)
 
 		select {

@@ -19,16 +19,7 @@ var Command = &cobra.Command{
 	Long: `Serve a remote over a given protocol. Requires the use of a
 subcommand to specify the protocol, e.g.
 
-` + "```console" + `
-rclone serve http remote:
-` + "```" + `
-
-When the "--metadata" flag is enabled, the following metadata fields will be provided as headers:
-- "content-disposition"
-- "cache-control" 
-- "content-language"
-- "content-encoding"
-Note: The availability of these fields depends on whether the remote supports metadata.
+    rclone serve http remote:
 
 Each subcommand has its own options which you can see in their help.
 `,

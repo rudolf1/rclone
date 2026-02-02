@@ -51,19 +51,19 @@ func (rs *ResultsSlice) has(name string) bool {
 	return false
 }
 
-type bisyncQueueOpt struct {
-	logger                operations.LoggerOpt
+var (
+	logger                = operations.NewLoggerOpt()
 	lock                  mutex.Mutex
 	once                  mutex.Once
 	ignoreListingChecksum bool
 	ignoreListingModtime  bool
 	hashTypes             map[string]hash.Type
 	queueCI               *fs.ConfigInfo
-}
+)
 
 // allows us to get the right hashtype during the LoggerFn without knowing whether it's Path1/Path2
-func (b *bisyncRun) getHashType(fname string) hash.Type {
-	ht, ok := b.queueOpt.hashTypes[fname]
+func getHashType(fname string) hash.Type {
+	ht, ok := hashTypes[fname]
 	if ok {
 		return ht
 	}
@@ -106,9 +106,9 @@ func altName(name string, src, dst fs.DirEntry) string {
 }
 
 // WriteResults is Bisync's LoggerFn
-func (b *bisyncRun) WriteResults(ctx context.Context, sigil operations.Sigil, src, dst fs.DirEntry, err error) {
-	b.queueOpt.lock.Lock()
-	defer b.queueOpt.lock.Unlock()
+func WriteResults(ctx context.Context, sigil operations.Sigil, src, dst fs.DirEntry, err error) {
+	lock.Lock()
+	defer lock.Unlock()
 
 	opt := operations.GetLoggerOpt(ctx)
 	result := Results{
@@ -131,14 +131,14 @@ func (b *bisyncRun) WriteResults(ctx context.Context, sigil operations.Sigil, sr
 		result.Flags = "-"
 		if side != nil {
 			result.Size = side.Size()
-			if !b.queueOpt.ignoreListingModtime {
+			if !ignoreListingModtime {
 				result.Modtime = side.ModTime(ctx).In(TZ)
 			}
-			if !b.queueOpt.ignoreListingChecksum {
+			if !ignoreListingChecksum {
 				sideObj, ok := side.(fs.ObjectInfo)
 				if ok {
-					result.Hash, _ = sideObj.Hash(ctx, b.getHashType(sideObj.Fs().Name()))
-					result.Hash, _ = b.tryDownloadHash(ctx, sideObj, result.Hash)
+					result.Hash, _ = sideObj.Hash(ctx, getHashType(sideObj.Fs().Name()))
+					result.Hash, _ = tryDownloadHash(ctx, sideObj, result.Hash)
 				}
 
 			}
@@ -159,8 +159,8 @@ func (b *bisyncRun) WriteResults(ctx context.Context, sigil operations.Sigil, sr
 		}
 
 		prettyprint(result, "writing result", fs.LogLevelDebug)
-		if result.Size < 0 && result.Flags != "d" && ((b.queueOpt.queueCI.CheckSum && !b.downloadHashOpt.downloadHash) || b.queueOpt.queueCI.SizeOnly) {
-			b.queueOpt.once.Do(func() {
+		if result.Size < 0 && result.Flags != "d" && ((queueCI.CheckSum && !downloadHash) || queueCI.SizeOnly) {
+			once.Do(func() {
 				fs.Log(result.Name, Color(terminal.YellowFg, "Files of unknown size (such as Google Docs) do not sync reliably with --checksum or --size-only. Consider using modtime instead (the default) or --drive-skip-gdocs"))
 			})
 		}
@@ -189,14 +189,14 @@ func ReadResults(results io.Reader) []Results {
 
 // for setup code shared by both fastCopy and resyncDir
 func (b *bisyncRun) preCopy(ctx context.Context) context.Context {
-	b.queueOpt.queueCI = fs.GetConfig(ctx)
-	b.queueOpt.ignoreListingChecksum = b.opt.IgnoreListingChecksum
-	b.queueOpt.ignoreListingModtime = !b.opt.Compare.Modtime
-	b.queueOpt.hashTypes = map[string]hash.Type{
+	queueCI = fs.GetConfig(ctx)
+	ignoreListingChecksum = b.opt.IgnoreListingChecksum
+	ignoreListingModtime = !b.opt.Compare.Modtime
+	hashTypes = map[string]hash.Type{
 		b.fs1.Name(): b.opt.Compare.HashType1,
 		b.fs2.Name(): b.opt.Compare.HashType2,
 	}
-	b.queueOpt.logger.LoggerFn = b.WriteResults
+	logger.LoggerFn = WriteResults
 	overridingEqual := false
 	if (b.opt.Compare.Modtime && b.opt.Compare.Checksum) || b.opt.Compare.DownloadHash {
 		overridingEqual = true
@@ -209,15 +209,15 @@ func (b *bisyncRun) preCopy(ctx context.Context) context.Context {
 		fs.Debugf(nil, "overriding equal")
 		ctx = b.EqualFn(ctx)
 	}
-	ctxCopyLogger := operations.WithSyncLogger(ctx, b.queueOpt.logger)
+	ctxCopyLogger := operations.WithSyncLogger(ctx, logger)
 	if b.opt.Compare.Checksum && (b.opt.Compare.NoSlowHash || b.opt.Compare.SlowHashSyncOnly) && b.opt.Compare.SlowHashDetected {
 		// set here in case !b.opt.Compare.Modtime
-		b.queueOpt.queueCI = fs.GetConfig(ctxCopyLogger)
+		queueCI = fs.GetConfig(ctxCopyLogger)
 		if b.opt.Compare.NoSlowHash {
-			b.queueOpt.queueCI.CheckSum = false
+			queueCI.CheckSum = false
 		}
 		if b.opt.Compare.SlowHashSyncOnly && !overridingEqual {
-			b.queueOpt.queueCI.CheckSum = true
+			queueCI.CheckSum = true
 		}
 	}
 	return ctxCopyLogger
@@ -245,14 +245,14 @@ func (b *bisyncRun) fastCopy(ctx context.Context, fsrc, fdst fs.Fs, files bilib.
 		}
 	}
 
-	b.SyncCI = fs.GetConfig(ctxCopy)                       // allows us to request graceful shutdown
-	accounting.Stats(ctxCopy).SetMaxCompletedTransfers(-1) // we need a complete list in the event of graceful shutdown
+	b.SyncCI = fs.GetConfig(ctxCopy)      // allows us to request graceful shutdown
+	accounting.MaxCompletedTransfers = -1 // we need a complete list in the event of graceful shutdown
 	ctxCopy, b.CancelSync = context.WithCancel(ctxCopy)
 	b.testFn()
 	err := sync.Sync(ctxCopy, fdst, fsrc, b.opt.CreateEmptySrcDirs)
-	prettyprint(b.queueOpt.logger, "b.queueOpt.logger", fs.LogLevelDebug)
+	prettyprint(logger, "logger", fs.LogLevelDebug)
 
-	getResults := ReadResults(b.queueOpt.logger.JSON)
+	getResults := ReadResults(logger.JSON)
 	fs.Debugf(nil, "Got %v results for %v", len(getResults), queueName)
 
 	lineFormat := "%s %8d %s %s %s %q\n"
@@ -292,9 +292,9 @@ func (b *bisyncRun) resyncDir(ctx context.Context, fsrc, fdst fs.Fs) ([]Results,
 	ctx = b.preCopy(ctx)
 
 	err := sync.CopyDir(ctx, fdst, fsrc, b.opt.CreateEmptySrcDirs)
-	prettyprint(b.queueOpt.logger, "b.queueOpt.logger", fs.LogLevelDebug)
+	prettyprint(logger, "logger", fs.LogLevelDebug)
 
-	getResults := ReadResults(b.queueOpt.logger.JSON)
+	getResults := ReadResults(logger.JSON)
 	fs.Debugf(nil, "Got %v results for %v", len(getResults), "resync")
 
 	return getResults, err
@@ -376,8 +376,8 @@ func (b *bisyncRun) saveQueue(files bilib.Names, jobName string) error {
 	return files.Save(queueFile)
 }
 
-func naptime(totalWait fs.Duration) {
-	expireTime := time.Now().Add(time.Duration(totalWait))
+func naptime(totalWait time.Duration) {
+	expireTime := time.Now().Add(totalWait)
 	fs.Logf(nil, "will retry in %v at %v", totalWait, expireTime.Format("2006-01-02 15:04:05 MST"))
 	for i := 0; time.Until(expireTime) > 0; i++ {
 		if i > 0 && i%10 == 0 {

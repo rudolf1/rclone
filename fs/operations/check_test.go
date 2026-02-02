@@ -218,21 +218,21 @@ func TestCheckEqualReaders(t *testing.T) {
 	b65b[len(b65b)-1] = 1
 	b66 := make([]byte, 66*1024)
 
-	equal, err := operations.CheckEqualReaders(bytes.NewBuffer(b65a), bytes.NewBuffer(b65a))
+	differ, err := operations.CheckEqualReaders(bytes.NewBuffer(b65a), bytes.NewBuffer(b65a))
 	assert.NoError(t, err)
-	assert.Equal(t, equal, true)
+	assert.Equal(t, differ, false)
 
-	equal, err = operations.CheckEqualReaders(bytes.NewBuffer(b65a), bytes.NewBuffer(b65b))
+	differ, err = operations.CheckEqualReaders(bytes.NewBuffer(b65a), bytes.NewBuffer(b65b))
 	assert.NoError(t, err)
-	assert.Equal(t, equal, false)
+	assert.Equal(t, differ, true)
 
-	equal, err = operations.CheckEqualReaders(bytes.NewBuffer(b65a), bytes.NewBuffer(b66))
+	differ, err = operations.CheckEqualReaders(bytes.NewBuffer(b65a), bytes.NewBuffer(b66))
 	assert.NoError(t, err)
-	assert.Equal(t, equal, false)
+	assert.Equal(t, differ, true)
 
-	equal, err = operations.CheckEqualReaders(bytes.NewBuffer(b66), bytes.NewBuffer(b65a))
+	differ, err = operations.CheckEqualReaders(bytes.NewBuffer(b66), bytes.NewBuffer(b65a))
 	assert.NoError(t, err)
-	assert.Equal(t, equal, false)
+	assert.Equal(t, differ, true)
 
 	myErr := errors.New("sentinel")
 	wrap := func(b []byte) io.Reader {
@@ -241,37 +241,37 @@ func TestCheckEqualReaders(t *testing.T) {
 		return io.MultiReader(r, e)
 	}
 
-	equal, err = operations.CheckEqualReaders(wrap(b65a), bytes.NewBuffer(b65a))
+	differ, err = operations.CheckEqualReaders(wrap(b65a), bytes.NewBuffer(b65a))
 	assert.Equal(t, myErr, err)
-	assert.Equal(t, equal, false)
+	assert.Equal(t, differ, true)
 
-	equal, err = operations.CheckEqualReaders(wrap(b65a), bytes.NewBuffer(b65b))
+	differ, err = operations.CheckEqualReaders(wrap(b65a), bytes.NewBuffer(b65b))
 	assert.Equal(t, myErr, err)
-	assert.Equal(t, equal, false)
+	assert.Equal(t, differ, true)
 
-	equal, err = operations.CheckEqualReaders(wrap(b65a), bytes.NewBuffer(b66))
+	differ, err = operations.CheckEqualReaders(wrap(b65a), bytes.NewBuffer(b66))
 	assert.Equal(t, myErr, err)
-	assert.Equal(t, equal, false)
+	assert.Equal(t, differ, true)
 
-	equal, err = operations.CheckEqualReaders(wrap(b66), bytes.NewBuffer(b65a))
+	differ, err = operations.CheckEqualReaders(wrap(b66), bytes.NewBuffer(b65a))
 	assert.Equal(t, myErr, err)
-	assert.Equal(t, equal, false)
+	assert.Equal(t, differ, true)
 
-	equal, err = operations.CheckEqualReaders(bytes.NewBuffer(b65a), wrap(b65a))
+	differ, err = operations.CheckEqualReaders(bytes.NewBuffer(b65a), wrap(b65a))
 	assert.Equal(t, myErr, err)
-	assert.Equal(t, equal, false)
+	assert.Equal(t, differ, true)
 
-	equal, err = operations.CheckEqualReaders(bytes.NewBuffer(b65a), wrap(b65b))
+	differ, err = operations.CheckEqualReaders(bytes.NewBuffer(b65a), wrap(b65b))
 	assert.Equal(t, myErr, err)
-	assert.Equal(t, equal, false)
+	assert.Equal(t, differ, true)
 
-	equal, err = operations.CheckEqualReaders(bytes.NewBuffer(b65a), wrap(b66))
+	differ, err = operations.CheckEqualReaders(bytes.NewBuffer(b65a), wrap(b66))
 	assert.Equal(t, myErr, err)
-	assert.Equal(t, equal, false)
+	assert.Equal(t, differ, true)
 
-	equal, err = operations.CheckEqualReaders(bytes.NewBuffer(b66), wrap(b65a))
+	differ, err = operations.CheckEqualReaders(bytes.NewBuffer(b66), wrap(b65a))
 	assert.Equal(t, myErr, err)
-	assert.Equal(t, equal, false)
+	assert.Equal(t, differ, true)
 }
 
 func TestParseSumFile(t *testing.T) {

@@ -125,21 +125,10 @@ type FolderItems struct {
 	Offset     int     `json:"offset"`
 	Limit      int     `json:"limit"`
 	NextMarker *string `json:"next_marker,omitempty"`
-	// There is some confusion about how this is actually
-	// returned. The []struct has worked for many years, but in
-	// https://github.com/rclone/rclone/issues/8776 box was
-	// returning it returned not as a list. We don't actually use
-	// this so comment it out.
-	//
-	// Order struct {
-	// 	By        string `json:"by"`
-	// 	Direction string `json:"direction"`
-	// } `json:"order"`
-	//
-	// Order      []struct {
-	// 	By        string `json:"by"`
-	// 	Direction string `json:"direction"`
-	// } `json:"order"`
+	Order      []struct {
+		By        string `json:"by"`
+		Direction string `json:"direction"`
+	} `json:"order"`
 }
 
 // Parent defined the ID of the parent directory
@@ -282,9 +271,9 @@ type User struct {
 	ModifiedAt    time.Time `json:"modified_at"`
 	Language      string    `json:"language"`
 	Timezone      string    `json:"timezone"`
-	SpaceAmount   float64   `json:"space_amount"`
-	SpaceUsed     float64   `json:"space_used"`
-	MaxUploadSize float64   `json:"max_upload_size"`
+	SpaceAmount   int64     `json:"space_amount"`
+	SpaceUsed     int64     `json:"space_used"`
+	MaxUploadSize int64     `json:"max_upload_size"`
 	Status        string    `json:"status"`
 	JobTitle      string    `json:"job_title"`
 	Phone         string    `json:"phone"`

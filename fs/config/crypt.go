@@ -51,7 +51,6 @@ func Decrypt(b io.ReadSeeker) (io.Reader, error) {
 	ctx := context.Background()
 	ci := fs.GetConfig(ctx)
 	var usingPasswordCommand bool
-	var usingEnvPassword bool
 
 	// Find first non-empty line
 	r := bufio.NewReader(b)
@@ -77,9 +76,8 @@ func Decrypt(b io.ReadSeeker) (io.Reader, error) {
 		if strings.HasPrefix(l, "RCLONE_ENCRYPT_V") {
 			return nil, errors.New("unsupported configuration encryption - update rclone for support")
 		}
-		// Restore non-seekable plain-text stream to its original state
 		if _, err := b.Seek(0, io.SeekStart); err != nil {
-			return io.MultiReader(strings.NewReader(l+"\n"), r), nil
+			return nil, err
 		}
 		return b, nil
 	}
@@ -101,18 +99,15 @@ func Decrypt(b io.ReadSeeker) (io.Reader, error) {
 		} else {
 			usingPasswordCommand = false
 
-			envPassword := os.Getenv("RCLONE_CONFIG_PASS")
+			envpw := os.Getenv("RCLONE_CONFIG_PASS")
 
-			if envPassword != "" {
-				usingEnvPassword = true
-				err := SetConfigPassword(envPassword)
+			if envpw != "" {
+				err := SetConfigPassword(envpw)
 				if err != nil {
 					fs.Errorf(nil, "Using RCLONE_CONFIG_PASS returned: %v", err)
 				} else {
 					fs.Debugf(nil, "Using RCLONE_CONFIG_PASS password.")
 				}
-			} else {
-				usingEnvPassword = false
 			}
 		}
 	}
@@ -149,9 +144,6 @@ func Decrypt(b io.ReadSeeker) (io.Reader, error) {
 			if usingPasswordCommand {
 				return nil, errors.New("using --password-command derived password, unable to decrypt configuration")
 			}
-			if usingEnvPassword {
-				return nil, errors.New("using RCLONE_CONFIG_PASS env password, unable to decrypt configuration")
-			}
 			if !ci.AskPassword {
 				return nil, errors.New("unable to decrypt configuration and not allowed to ask for password - set RCLONE_CONFIG_PASS to your configuration password")
 			}
@@ -180,7 +172,7 @@ func Decrypt(b io.ReadSeeker) (io.Reader, error) {
 
 // GetPasswordCommand gets the password using the --password-command setting
 //
-// If the --password-command flag was not in use it returns "", nil
+// If the the --password-command flag was not in use it returns "", nil
 func GetPasswordCommand(ctx context.Context) (pass string, err error) {
 	ci := fs.GetConfig(ctx)
 	if len(ci.PasswordCommand) == 0 {

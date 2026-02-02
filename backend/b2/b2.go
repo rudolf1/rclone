@@ -8,9 +8,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/md5"
 	"crypto/sha1"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -55,9 +53,6 @@ const (
 	nameHeader          = "X-Bz-File-Name"
 	timestampHeader     = "X-Bz-Upload-Timestamp"
 	retryAfterHeader    = "Retry-After"
-	sseAlgorithmHeader  = "X-Bz-Server-Side-Encryption-Customer-Algorithm"
-	sseKeyHeader        = "X-Bz-Server-Side-Encryption-Customer-Key"
-	sseMd5Header        = "X-Bz-Server-Side-Encryption-Customer-Key-Md5"
 	minSleep            = 10 * time.Millisecond
 	maxSleep            = 5 * time.Minute
 	decayConstant       = 1 // bigger for slower decay, exponential
@@ -72,7 +67,7 @@ const (
 
 // Globals
 var (
-	errNotWithVersions  = errors.New("can't modify files in --b2-versions mode")
+	errNotWithVersions  = errors.New("can't modify or delete files in --b2-versions mode")
 	errNotWithVersionAt = errors.New("can't modify or delete files in --b2-version-at mode")
 )
 
@@ -257,51 +252,6 @@ See: [rclone backend lifecycle](#lifecycle) for setting lifecycles after bucket 
 			Default: (encoder.Display |
 				encoder.EncodeBackSlash |
 				encoder.EncodeInvalidUtf8),
-		}, {
-			Name:     "sse_customer_algorithm",
-			Help:     "If using SSE-C, the server-side encryption algorithm used when storing this object in B2.",
-			Advanced: true,
-			Examples: []fs.OptionExample{{
-				Value: "",
-				Help:  "None",
-			}, {
-				Value: "AES256",
-				Help:  "Advanced Encryption Standard (256 bits key length)",
-			}},
-		}, {
-			Name: "sse_customer_key",
-			Help: `To use SSE-C, you may provide the secret encryption key encoded in a UTF-8 compatible string to encrypt/decrypt your data
-
-Alternatively you can provide --sse-customer-key-base64.`,
-			Advanced: true,
-			Examples: []fs.OptionExample{{
-				Value: "",
-				Help:  "None",
-			}},
-			Sensitive: true,
-		}, {
-			Name: "sse_customer_key_base64",
-			Help: `To use SSE-C, you may provide the secret encryption key encoded in Base64 format to encrypt/decrypt your data
-
-Alternatively you can provide --sse-customer-key.`,
-			Advanced: true,
-			Examples: []fs.OptionExample{{
-				Value: "",
-				Help:  "None",
-			}},
-			Sensitive: true,
-		}, {
-			Name: "sse_customer_key_md5",
-			Help: `If using SSE-C you may provide the secret encryption key MD5 checksum (optional).
-
-If you leave it blank, this is calculated automatically from the sse_customer_key provided.
-`,
-			Advanced: true,
-			Examples: []fs.OptionExample{{
-				Value: "",
-				Help:  "None",
-			}},
-			Sensitive: true,
 		}},
 	})
 }
@@ -324,10 +274,6 @@ type Options struct {
 	DownloadAuthorizationDuration fs.Duration          `config:"download_auth_duration"`
 	Lifecycle                     int                  `config:"lifecycle"`
 	Enc                           encoder.MultiEncoder `config:"encoding"`
-	SSECustomerAlgorithm          string               `config:"sse_customer_algorithm"`
-	SSECustomerKey                string               `config:"sse_customer_key"`
-	SSECustomerKeyBase64          string               `config:"sse_customer_key_base64"`
-	SSECustomerKeyMD5             string               `config:"sse_customer_key_md5"`
 }
 
 // Fs represents a remote b2 server
@@ -558,24 +504,6 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 	if opt.Endpoint == "" {
 		opt.Endpoint = defaultEndpoint
 	}
-	if opt.SSECustomerKey != "" && opt.SSECustomerKeyBase64 != "" {
-		return nil, errors.New("b2: can't use both sse_customer_key and sse_customer_key_base64 at the same time")
-	} else if opt.SSECustomerKeyBase64 != "" {
-		// Decode the Base64-encoded key and store it in the SSECustomerKey field
-		decoded, err := base64.StdEncoding.DecodeString(opt.SSECustomerKeyBase64)
-		if err != nil {
-			return nil, fmt.Errorf("b2: Could not decode sse_customer_key_base64: %w", err)
-		}
-		opt.SSECustomerKey = string(decoded)
-	} else {
-		// Encode the raw key as Base64
-		opt.SSECustomerKeyBase64 = base64.StdEncoding.EncodeToString([]byte(opt.SSECustomerKey))
-	}
-	if opt.SSECustomerKey != "" && opt.SSECustomerKeyMD5 == "" {
-		// Calculate CustomerKeyMd5 if not supplied
-		md5sumBinary := md5.Sum([]byte(opt.SSECustomerKey))
-		opt.SSECustomerKeyMD5 = base64.StdEncoding.EncodeToString(md5sumBinary[:])
-	}
 	ci := fs.GetConfig(ctx)
 	f := &Fs{
 		name:        name,
@@ -607,29 +535,17 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to authorize account: %w", err)
 	}
-	// If this is a key limited to one or more buckets, one of them must exist
-	// and be ours.
-	if f.rootBucket != "" && len(f.info.APIs.Storage.Allowed.Buckets) != 0 {
-		buckets := f.info.APIs.Storage.Allowed.Buckets
-		var rootFound = false
-		var rootID string
-		for _, b := range buckets {
-			allowedBucket := f.opt.Enc.ToStandardName(b.Name)
-			if allowedBucket == "" {
-				fs.Debugf(f, "bucket %q that application key is restricted to no longer exists", b.ID)
-				continue
-			}
-
-			if allowedBucket == f.rootBucket {
-				rootFound = true
-				rootID = b.ID
-			}
+	// If this is a key limited to a single bucket, it must exist already
+	if f.rootBucket != "" && f.info.Allowed.BucketID != "" {
+		allowedBucket := f.opt.Enc.ToStandardName(f.info.Allowed.BucketName)
+		if allowedBucket == "" {
+			return nil, errors.New("bucket that application key is restricted to no longer exists")
 		}
-		if !rootFound {
-			return nil, fmt.Errorf("you must use bucket(s) %q with this application key", buckets)
+		if allowedBucket != f.rootBucket {
+			return nil, fmt.Errorf("you must use bucket %q with this application key", allowedBucket)
 		}
 		f.cache.MarkOK(f.rootBucket)
-		f.setBucketID(f.rootBucket, rootID)
+		f.setBucketID(f.rootBucket, f.info.Allowed.BucketID)
 	}
 	if f.rootBucket != "" && f.rootDirectory != "" {
 		// Check to see if the (bucket,directory) is actually an existing file
@@ -655,7 +571,7 @@ func (f *Fs) authorizeAccount(ctx context.Context) error {
 	defer f.authMu.Unlock()
 	opts := rest.Opts{
 		Method:       "GET",
-		Path:         "/b2api/v4/b2_authorize_account",
+		Path:         "/b2api/v1/b2_authorize_account",
 		RootURL:      f.opt.Endpoint,
 		UserName:     f.opt.Account,
 		Password:     f.opt.Key,
@@ -668,13 +584,13 @@ func (f *Fs) authorizeAccount(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to authenticate: %w", err)
 	}
-	f.srv.SetRoot(f.info.APIs.Storage.APIURL+"/b2api/v1").SetHeader("Authorization", f.info.AuthorizationToken)
+	f.srv.SetRoot(f.info.APIURL+"/b2api/v1").SetHeader("Authorization", f.info.AuthorizationToken)
 	return nil
 }
 
 // hasPermission returns if the current AuthorizationToken has the selected permission
 func (f *Fs) hasPermission(permission string) bool {
-	return slices.Contains(f.info.APIs.Storage.Allowed.Capabilities, permission)
+	return slices.Contains(f.info.Allowed.Capabilities, permission)
 }
 
 // getUploadURL returns the upload info with the UploadURL and the AuthorizationToken
@@ -931,7 +847,7 @@ func (f *Fs) itemToDirEntry(ctx context.Context, remote string, object *api.File
 }
 
 // listDir lists a single directory
-func (f *Fs) listDir(ctx context.Context, bucket, directory, prefix string, addBucket bool, callback func(fs.DirEntry) error) (err error) {
+func (f *Fs) listDir(ctx context.Context, bucket, directory, prefix string, addBucket bool) (entries fs.DirEntries, err error) {
 	last := ""
 	err = f.list(ctx, bucket, directory, prefix, f.rootBucket == "", false, 0, f.opt.Versions, false, func(remote string, object *api.File, isDirectory bool) error {
 		entry, err := f.itemToDirEntry(ctx, remote, object, isDirectory, &last)
@@ -939,16 +855,16 @@ func (f *Fs) listDir(ctx context.Context, bucket, directory, prefix string, addB
 			return err
 		}
 		if entry != nil {
-			return callback(entry)
+			entries = append(entries, entry)
 		}
 		return nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// bucket must be present if listing succeeded
 	f.cache.MarkOK(bucket)
-	return nil
+	return entries, nil
 }
 
 // listBuckets returns all the buckets to out
@@ -974,46 +890,14 @@ func (f *Fs) listBuckets(ctx context.Context) (entries fs.DirEntries, err error)
 // This should return ErrDirNotFound if the directory isn't
 // found.
 func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err error) {
-	return list.WithListP(ctx, dir, f)
-}
-
-// ListP lists the objects and directories of the Fs starting
-// from dir non recursively into out.
-//
-// dir should be "" to start from the root, and should not
-// have trailing slashes.
-//
-// This should return ErrDirNotFound if the directory isn't
-// found.
-//
-// It should call callback for each tranche of entries read.
-// These need not be returned in any particular order.  If
-// callback returns an error then the listing will stop
-// immediately.
-func (f *Fs) ListP(ctx context.Context, dir string, callback fs.ListRCallback) error {
-	list := list.NewHelper(callback)
 	bucket, directory := f.split(dir)
 	if bucket == "" {
 		if directory != "" {
-			return fs.ErrorListBucketRequired
+			return nil, fs.ErrorListBucketRequired
 		}
-		entries, err := f.listBuckets(ctx)
-		if err != nil {
-			return err
-		}
-		for _, entry := range entries {
-			err = list.Add(entry)
-			if err != nil {
-				return err
-			}
-		}
-	} else {
-		err := f.listDir(ctx, bucket, directory, f.rootDirectory, f.rootBucket == "", list.Add)
-		if err != nil {
-			return err
-		}
+		return f.listBuckets(ctx)
 	}
-	return list.Flush()
+	return f.listDir(ctx, bucket, directory, f.rootDirectory, f.rootBucket == "")
 }
 
 // ListR lists the objects and directories of the Fs starting
@@ -1079,83 +963,44 @@ type listBucketFn func(*api.Bucket) error
 
 // listBucketsToFn lists the buckets to the function supplied
 func (f *Fs) listBucketsToFn(ctx context.Context, bucketName string, fn listBucketFn) error {
-	responses := make([]api.ListBucketsResponse, len(f.info.APIs.Storage.Allowed.Buckets))[:0]
-
-	call := func(id string) error {
-		var account = api.ListBucketsRequest{
-			AccountID: f.info.AccountID,
-			BucketID:  id,
-		}
-		if bucketName != "" && account.BucketID == "" {
-			account.BucketName = f.opt.Enc.FromStandardName(bucketName)
-		}
-
-		var response api.ListBucketsResponse
-		opts := rest.Opts{
-			Method: "POST",
-			Path:   "/b2_list_buckets",
-		}
-		err := f.pacer.Call(func() (bool, error) {
-			resp, err := f.srv.CallJSON(ctx, &opts, &account, &response)
-			return f.shouldRetry(ctx, resp, err)
-		})
-		if err != nil {
-			return err
-		}
-		responses = append(responses, response)
-		return nil
+	var account = api.ListBucketsRequest{
+		AccountID: f.info.AccountID,
+		BucketID:  f.info.Allowed.BucketID,
+	}
+	if bucketName != "" && account.BucketID == "" {
+		account.BucketName = f.opt.Enc.FromStandardName(bucketName)
 	}
 
-	for i := range f.info.APIs.Storage.Allowed.Buckets {
-		b := &f.info.APIs.Storage.Allowed.Buckets[i]
-		// Empty names indicate a bucket that no longer exists, this is non-fatal
-		// for multi-bucket API keys.
-		if b.Name == "" {
-			continue
-		}
-		// When requesting a specific bucket skip over non-matching names
-		if bucketName != "" && b.Name != bucketName {
-			continue
-		}
-
-		err := call(b.ID)
-		if err != nil {
-			return err
-		}
+	var response api.ListBucketsResponse
+	opts := rest.Opts{
+		Method: "POST",
+		Path:   "/b2_list_buckets",
 	}
-
-	if len(f.info.APIs.Storage.Allowed.Buckets) == 0 {
-		err := call("")
-		if err != nil {
-			return err
-		}
+	err := f.pacer.Call(func() (bool, error) {
+		resp, err := f.srv.CallJSON(ctx, &opts, &account, &response)
+		return f.shouldRetry(ctx, resp, err)
+	})
+	if err != nil {
+		return err
 	}
-
 	f.bucketIDMutex.Lock()
 	f.bucketTypeMutex.Lock()
 	f._bucketID = make(map[string]string, 1)
 	f._bucketType = make(map[string]string, 1)
-
-	for ri := range responses {
-		response := &responses[ri]
-		for i := range response.Buckets {
-			bucket := &response.Buckets[i]
-			bucket.Name = f.opt.Enc.ToStandardName(bucket.Name)
-			f.cache.MarkOK(bucket.Name)
-			f._bucketID[bucket.Name] = bucket.ID
-			f._bucketType[bucket.Name] = bucket.Type
-		}
+	for i := range response.Buckets {
+		bucket := &response.Buckets[i]
+		bucket.Name = f.opt.Enc.ToStandardName(bucket.Name)
+		f.cache.MarkOK(bucket.Name)
+		f._bucketID[bucket.Name] = bucket.ID
+		f._bucketType[bucket.Name] = bucket.Type
 	}
 	f.bucketTypeMutex.Unlock()
 	f.bucketIDMutex.Unlock()
-	for ri := range responses {
-		response := &responses[ri]
-		for i := range response.Buckets {
-			bucket := &response.Buckets[i]
-			err := fn(bucket)
-			if err != nil {
-				return err
-			}
+	for i := range response.Buckets {
+		bucket := &response.Buckets[i]
+		err = fn(bucket)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
@@ -1558,16 +1403,6 @@ func (f *Fs) copy(ctx context.Context, dstObj *Object, srcObj *Object, newInfo *
 		Name:         f.opt.Enc.FromStandardPath(dstPath),
 		DestBucketID: destBucketID,
 	}
-	if f.opt.SSECustomerKey != "" && f.opt.SSECustomerKeyMD5 != "" {
-		serverSideEncryptionConfig := api.ServerSideEncryption{
-			Mode:           "SSE-C",
-			Algorithm:      f.opt.SSECustomerAlgorithm,
-			CustomerKey:    f.opt.SSECustomerKeyBase64,
-			CustomerKeyMd5: f.opt.SSECustomerKeyMD5,
-		}
-		request.SourceServerSideEncryption = &serverSideEncryptionConfig
-		request.DestinationServerSideEncryption = &serverSideEncryptionConfig
-	}
 	if newInfo == nil {
 		request.MetadataDirective = "COPY"
 	} else {
@@ -1657,7 +1492,7 @@ func (f *Fs) PublicLink(ctx context.Context, remote string, expire fs.Duration, 
 	bucket, bucketPath := f.split(remote)
 	var RootURL string
 	if f.opt.DownloadURL == "" {
-		RootURL = f.info.APIs.Storage.DownloadURL
+		RootURL = f.info.DownloadURL
 	} else {
 		RootURL = f.opt.DownloadURL
 	}
@@ -1838,21 +1673,6 @@ func (o *Object) getMetaData(ctx context.Context) (info *api.File, err error) {
 			return o.getMetaDataListing(ctx)
 		}
 	}
-
-	// If using versionAt we need to list the find the correct version.
-	if o.fs.opt.VersionAt.IsSet() {
-		info, err := o.getMetaDataListing(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		if info.Action == "hide" {
-			// Rerturn object not found error if the current version is deleted.
-			return nil, fs.ErrorObjectNotFound
-		}
-		return info, nil
-	}
-
 	_, info, err = o.getOrHead(ctx, "HEAD", nil)
 	return info, err
 }
@@ -1999,16 +1819,15 @@ var _ io.ReadCloser = &openFile{}
 
 func (o *Object) getOrHead(ctx context.Context, method string, options []fs.OpenOption) (resp *http.Response, info *api.File, err error) {
 	opts := rest.Opts{
-		Method:       method,
-		Options:      options,
-		NoResponse:   method == "HEAD",
-		ExtraHeaders: map[string]string{},
+		Method:     method,
+		Options:    options,
+		NoResponse: method == "HEAD",
 	}
 
 	// Use downloadUrl from backblaze if downloadUrl is not set
 	// otherwise use the custom downloadUrl
 	if o.fs.opt.DownloadURL == "" {
-		opts.RootURL = o.fs.info.APIs.Storage.DownloadURL
+		opts.RootURL = o.fs.info.DownloadURL
 	} else {
 		opts.RootURL = o.fs.opt.DownloadURL
 	}
@@ -2019,11 +1838,6 @@ func (o *Object) getOrHead(ctx context.Context, method string, options []fs.Open
 	} else {
 		bucket, bucketPath := o.split()
 		opts.Path += "/file/" + urlEncode(o.fs.opt.Enc.FromStandardName(bucket)) + "/" + urlEncode(o.fs.opt.Enc.FromStandardPath(bucketPath))
-	}
-	if o.fs.opt.SSECustomerKey != "" && o.fs.opt.SSECustomerKeyMD5 != "" {
-		opts.ExtraHeaders[sseAlgorithmHeader] = o.fs.opt.SSECustomerAlgorithm
-		opts.ExtraHeaders[sseKeyHeader] = o.fs.opt.SSECustomerKeyBase64
-		opts.ExtraHeaders[sseMd5Header] = o.fs.opt.SSECustomerKeyMD5
 	}
 	err = o.fs.pacer.Call(func() (bool, error) {
 		resp, err = o.fs.srv.Call(ctx, &opts)
@@ -2069,13 +1883,8 @@ func (o *Object) getOrHead(ctx context.Context, method string, options []fs.Open
 	// --b2-download-url cloudflare strips the Content-Length
 	// headers (presumably so it can inject stuff) so use the old
 	// length read from the listing.
-	// Additionally, the official examples return S3 headers
-	// instead of native, i.e. no file ID, use ones from listing.
 	if info.Size < 0 {
 		info.Size = o.size
-	}
-	if info.ID == "" {
-		info.ID = o.id
 	}
 	return resp, info, nil
 }
@@ -2289,11 +2098,6 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 		},
 		ContentLength: &size,
 	}
-	if o.fs.opt.SSECustomerKey != "" && o.fs.opt.SSECustomerKeyMD5 != "" {
-		opts.ExtraHeaders[sseAlgorithmHeader] = o.fs.opt.SSECustomerAlgorithm
-		opts.ExtraHeaders[sseKeyHeader] = o.fs.opt.SSECustomerKeyBase64
-		opts.ExtraHeaders[sseMd5Header] = o.fs.opt.SSECustomerKeyMD5
-	}
 	var response api.FileInfo
 	// Don't retry, return a retry error instead
 	err = o.fs.pacer.CallNoRetry(func() (bool, error) {
@@ -2368,27 +2172,20 @@ func (f *Fs) OpenChunkWriter(ctx context.Context, remote string, src fs.ObjectIn
 		return info, nil, err
 	}
 
-	up, err := f.newLargeUpload(ctx, o, nil, src, f.opt.ChunkSize, false, nil, options...)
-	if err != nil {
-		return info, nil, err
-	}
-
 	info = fs.ChunkWriterInfo{
-		ChunkSize:   up.chunkSize,
+		ChunkSize:   int64(f.opt.ChunkSize),
 		Concurrency: o.fs.opt.UploadConcurrency,
 		//LeavePartsOnError: o.fs.opt.LeavePartsOnError,
 	}
-	return info, up, nil
+	up, err := f.newLargeUpload(ctx, o, nil, src, f.opt.ChunkSize, false, nil, options...)
+	return info, up, err
 }
 
 // Remove an object
 func (o *Object) Remove(ctx context.Context) error {
 	bucket, bucketPath := o.split()
 	if o.fs.opt.Versions {
-		t, path := api.RemoveVersion(bucketPath)
-		if !t.IsZero() {
-			return o.fs.deleteByID(ctx, o.id, path)
-		}
+		return errNotWithVersions
 	}
 	if o.fs.opt.VersionAt.IsSet() {
 		return errNotWithVersionAt
@@ -2411,36 +2208,32 @@ func (o *Object) ID() string {
 
 var lifecycleHelp = fs.CommandHelp{
 	Name:  "lifecycle",
-	Short: "Read or set the lifecycle for a bucket.",
+	Short: "Read or set the lifecycle for a bucket",
 	Long: `This command can be used to read or set the lifecycle for a bucket.
+
+Usage Examples:
 
 To show the current lifecycle rules:
 
-` + "```console" + `
-rclone backend lifecycle b2:bucket
-` + "```" + `
+    rclone backend lifecycle b2:bucket
 
 This will dump something like this showing the lifecycle rules.
 
-` + "```json" + `
-[
-    {
-        "daysFromHidingToDeleting": 1,
-        "daysFromUploadingToHiding": null,
-        "daysFromStartingToCancelingUnfinishedLargeFiles": null,
-        "fileNamePrefix": ""
-    }
-]
-` + "```" + `
+    [
+        {
+            "daysFromHidingToDeleting": 1,
+            "daysFromUploadingToHiding": null,
+            "daysFromStartingToCancelingUnfinishedLargeFiles": null,
+            "fileNamePrefix": ""
+        }
+    ]
 
-If there are no lifecycle rules (the default) then it will just return ` + "`[]`" + `.
+If there are no lifecycle rules (the default) then it will just return [].
 
 To reset the current lifecycle rules:
 
-` + "```console" + `
-rclone backend lifecycle b2:bucket -o daysFromHidingToDeleting=30
-rclone backend lifecycle b2:bucket -o daysFromUploadingToHiding=5 -o daysFromHidingToDeleting=1
-` + "```" + `
+    rclone backend lifecycle b2:bucket -o daysFromHidingToDeleting=30
+    rclone backend lifecycle b2:bucket -o daysFromUploadingToHiding=5 -o daysFromHidingToDeleting=1
 
 This will run and then print the new lifecycle rules as above.
 
@@ -2452,17 +2245,14 @@ the daysFromHidingToDeleting to 1 day. You can enable hard_delete in
 the config also which will mean deletions won't cause versions but
 overwrites will still cause versions to be made.
 
-` + "```console" + `
-rclone backend lifecycle b2:bucket -o daysFromHidingToDeleting=1
-` + "```" + `
+    rclone backend lifecycle b2:bucket -o daysFromHidingToDeleting=1
 
-See: <https://www.backblaze.com/docs/cloud-storage-lifecycle-rules>`,
+See: https://www.backblaze.com/docs/cloud-storage-lifecycle-rules
+`,
 	Opts: map[string]string{
-		"daysFromHidingToDeleting": `After a file has been hidden for this many days
-it is deleted. 0 is off.`,
-		"daysFromUploadingToHiding": `This many days after uploading a file is hidden.`,
-		"daysFromStartingToCancelingUnfinishedLargeFiles": `Cancels any unfinished
-large file versions after this many days.`,
+		"daysFromHidingToDeleting":                        "After a file has been hidden for this many days it is deleted. 0 is off.",
+		"daysFromUploadingToHiding":                       "This many days after uploading a file is hidden",
+		"daysFromStartingToCancelingUnfinishedLargeFiles": "Cancels any unfinished large file versions after this many days",
 	},
 }
 
@@ -2545,14 +2335,13 @@ max-age, which defaults to 24 hours.
 Note that you can use --interactive/-i or --dry-run with this command to see what
 it would do.
 
-` + "```console" + `
-rclone backend cleanup b2:bucket/path/to/object
-rclone backend cleanup -o max-age=7w b2:bucket/path/to/object
-` + "```" + `
+    rclone backend cleanup b2:bucket/path/to/object
+    rclone backend cleanup -o max-age=7w b2:bucket/path/to/object
 
-Durations are parsed as per the rest of rclone, 2h, 7d, 7w etc.`,
+Durations are parsed as per the rest of rclone, 2h, 7d, 7w etc.
+`,
 	Opts: map[string]string{
-		"max-age": "Max age of upload to delete.",
+		"max-age": "Max age of upload to delete",
 	},
 }
 
@@ -2575,9 +2364,8 @@ var cleanupHiddenHelp = fs.CommandHelp{
 Note that you can use --interactive/-i or --dry-run with this command to see what
 it would do.
 
-` + "```console" + `
-rclone backend cleanup-hidden b2:bucket/path/to/dir
-` + "```",
+    rclone backend cleanup-hidden b2:bucket/path/to/dir
+`,
 }
 
 func (f *Fs) cleanupHiddenCommand(ctx context.Context, name string, arg []string, opt map[string]string) (out any, err error) {
@@ -2620,7 +2408,6 @@ var (
 	_ fs.PutStreamer     = &Fs{}
 	_ fs.CleanUpper      = &Fs{}
 	_ fs.ListRer         = &Fs{}
-	_ fs.ListPer         = &Fs{}
 	_ fs.PublicLinker    = &Fs{}
 	_ fs.OpenChunkWriter = &Fs{}
 	_ fs.Commander       = &Fs{}

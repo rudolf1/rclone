@@ -22,21 +22,16 @@ inaccessible.true
 
 You can use it to tier single object
 
-```console
-rclone settier Cool remote:path/file
-```
+    rclone settier Cool remote:path/file
 
 Or use rclone filters to set tier on only specific files
 
-```console
-rclone --include "*.txt" settier Hot remote:path/dir
-```
+	rclone --include "*.txt" settier Hot remote:path/dir
 
 Or just provide remote directory and all files in directory will be tiered
 
-```console
-rclone settier tier remote:path/dir
-```
+    rclone settier tier remote:path/dir
+
 
 ```
 rclone settier tier remote:path [flags]
@@ -52,10 +47,5 @@ See the [global flags page](/flags/) for global options not listed here.
 
 ## See Also
 
-<!-- markdownlint-capture -->
-<!-- markdownlint-disable ul-style line-length -->
-
 * [rclone](/commands/rclone/)	 - Show help for rclone commands, flags and backends.
 
-
-<!-- markdownlint-restore -->

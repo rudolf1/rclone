@@ -6,7 +6,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/filter"
@@ -26,8 +25,8 @@ func createOnFirstUse() {
 	once.Do(func() {
 		ci := fs.GetConfig(context.Background())
 		c = cache.New()
-		c.SetExpireDuration(time.Duration(ci.FsCacheExpireDuration))
-		c.SetExpireInterval(time.Duration(ci.FsCacheExpireInterval))
+		c.SetExpireDuration(ci.FsCacheExpireDuration)
+		c.SetExpireInterval(ci.FsCacheExpireInterval)
 		c.SetFinalizer(func(value any) {
 			if s, ok := value.(fs.Shutdowner); ok {
 				_ = fs.CountError(context.Background(), s.Shutdown(context.Background()))

@@ -65,18 +65,14 @@ This takes the following parameters:
 
 Example:
 
-` + "```console" + `
-rclone rc mount/mount fs=mydrive: mountPoint=/home/<user>/mountPoint
-rclone rc mount/mount fs=mydrive: mountPoint=/home/<user>/mountPoint mountType=mount
-rclone rc mount/mount fs=TestDrive: mountPoint=/mnt/tmp vfsOpt='{"CacheMode": 2}' mountOpt='{"AllowOther": true}'
-` + "```" + `
+    rclone rc mount/mount fs=mydrive: mountPoint=/home/<user>/mountPoint
+    rclone rc mount/mount fs=mydrive: mountPoint=/home/<user>/mountPoint mountType=mount
+    rclone rc mount/mount fs=TestDrive: mountPoint=/mnt/tmp vfsOpt='{"CacheMode": 2}' mountOpt='{"AllowOther": true}'
 
-The vfsOpt are as described in options/get and can be seen in the
+The vfsOpt are as described in options/get and can be seen in the the
 "vfs" section when running and the mountOpt can be seen in the "mount" section:
 
-` + "```console" + `
-rclone rc options/get
-` + "```" + `
+    rclone rc options/get
 `,
 	})
 }

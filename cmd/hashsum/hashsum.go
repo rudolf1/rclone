@@ -103,17 +103,14 @@ as a relative path).
 
 Run without a hash to see the list of all supported hashes, e.g.
 
-` + "```console" + `
-$ rclone hashsum
-` + hash.HelpString(0) + "```" + `
-
+    $ rclone hashsum
+` + hash.HelpString(4) + `
 Then
 
-` + "```console" + `
-rclone hashsum MD5 remote:path
-` + "```" + `
+    $ rclone hashsum MD5 remote:path
 
-Note that hash names are case insensitive and values are output in lower case.`,
+Note that hash names are case insensitive and values are output in lower case.
+`,
 	Annotations: map[string]string{
 		"versionIntroduced": "v1.41",
 		"groups":            "Filter,Listing",

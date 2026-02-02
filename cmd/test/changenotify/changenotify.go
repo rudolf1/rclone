@@ -14,13 +14,13 @@ import (
 )
 
 var (
-	pollInterval = fs.Duration(10 * time.Second)
+	pollInterval = 10 * time.Second
 )
 
 func init() {
 	test.Command.AddCommand(commandDefinition)
 	cmdFlags := commandDefinition.Flags()
-	flags.FVarP(cmdFlags, &pollInterval, "poll-interval", "", "Time to wait between polling for changes", "")
+	flags.DurationVarP(cmdFlags, &pollInterval, "poll-interval", "", pollInterval, "Time to wait between polling for changes", "")
 }
 
 var commandDefinition = &cobra.Command{
@@ -39,7 +39,7 @@ var commandDefinition = &cobra.Command{
 		if do := features.ChangeNotify; do != nil {
 			pollChan := make(chan time.Duration)
 			do(ctx, changeNotify, pollChan)
-			pollChan <- time.Duration(pollInterval)
+			pollChan <- pollInterval
 			fs.Logf(nil, "Waiting for changes, polling every %v", pollInterval)
 		} else {
 			return errors.New("poll-interval is not supported by this remote")

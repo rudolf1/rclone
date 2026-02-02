@@ -2,7 +2,6 @@ package s3
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/rclone/gofakes3"
 	"github.com/rclone/rclone/fs"
@@ -13,23 +12,25 @@ type logger struct{}
 
 // print log message
 func (l logger) Print(level gofakes3.LogLevel, v ...any) {
-	var b strings.Builder
-	for i := range v {
-		if i > 0 {
-			fmt.Fprintf(&b, " ")
+	var s string
+	if len(v) == 0 {
+		s = ""
+	} else {
+		var ok bool
+		s, ok = v[0].(string)
+		if !ok {
+			s = fmt.Sprint(v[0])
 		}
-		fmt.Fprint(&b, v[i])
+		v = v[1:]
 	}
-	s := b.String()
-
 	switch level {
 	default:
 		fallthrough
 	case gofakes3.LogErr:
-		fs.Errorf("serve s3", s)
+		fs.Errorf("serve s3", s, v...)
 	case gofakes3.LogWarn:
-		fs.Infof("serve s3", s)
+		fs.Infof("serve s3", s, v...)
 	case gofakes3.LogInfo:
-		fs.Debugf("serve s3", s)
+		fs.Debugf("serve s3", s, v...)
 	}
 }

@@ -213,7 +213,7 @@ func BenchmarkCheckParents(b *testing.B) {
 				dt.Add(o)
 			}
 			b.StartTimer()
-			for b.Loop() {
+			for n := 0; n < b.N; n++ {
 				dt.CheckParents("")
 			}
 		})

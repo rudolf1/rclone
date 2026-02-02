@@ -16,6 +16,7 @@ in filenames in the remote:path specified.
 The data doesn't contain any identifying information but is useful for
 the rclone developers when developing filename compression.
 
+
 ```
 rclone test histogram [remote:path] [flags]
 ```
@@ -30,10 +31,5 @@ See the [global flags page](/flags/) for global options not listed here.
 
 ## See Also
 
-<!-- markdownlint-capture -->
-<!-- markdownlint-disable ul-style line-length -->
-
 * [rclone test](/commands/rclone_test/)	 - Run a test command
 
-
-<!-- markdownlint-restore -->

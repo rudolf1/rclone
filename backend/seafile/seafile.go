@@ -111,8 +111,7 @@ func init() {
 				encoder.EncodeSlash |
 				encoder.EncodeBackSlash |
 				encoder.EncodeDoubleQuote |
-				encoder.EncodeInvalidUtf8 |
-				encoder.EncodeDot),
+				encoder.EncodeInvalidUtf8),
 		}},
 	})
 }

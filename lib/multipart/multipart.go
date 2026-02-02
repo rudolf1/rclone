@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sync"
+	"time"
 
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/accounting"
@@ -16,12 +18,30 @@ import (
 
 const (
 	// BufferSize is the default size of the pages used in the reader
-	BufferSize = pool.BufferSize
+	BufferSize           = 1024 * 1024
+	bufferCacheSize      = 64              // max number of buffers to keep in cache
+	bufferCacheFlushTime = 5 * time.Second // flush the cached buffers after this long
 )
 
-// NewRW gets a pool.RW using the global pool
+// bufferPool is a global pool of buffers
+var (
+	bufferPool     *pool.Pool
+	bufferPoolOnce sync.Once
+)
+
+// get a buffer pool
+func getPool() *pool.Pool {
+	bufferPoolOnce.Do(func() {
+		ci := fs.GetConfig(context.Background())
+		// Initialise the buffer pool when used
+		bufferPool = pool.New(bufferCacheFlushTime, BufferSize, bufferCacheSize, ci.UseMmap)
+	})
+	return bufferPool
+}
+
+// NewRW gets a pool.RW using the multipart pool
 func NewRW() *pool.RW {
-	return pool.NewRW(pool.Global())
+	return pool.NewRW(getPool())
 }
 
 // UploadMultipartOptions options for the generic multipart upload
@@ -73,7 +93,7 @@ func UploadMultipart(ctx context.Context, src fs.ObjectInfo, in io.Reader, opt U
 	for partNum := int64(0); !finished; partNum++ {
 		// Get a block of memory from the pool and token which limits concurrency.
 		tokens.Get()
-		rw := NewRW().Reserve(chunkSize)
+		rw := NewRW()
 		if acc != nil {
 			rw.SetAccounting(acc.AccountRead)
 		}

@@ -8,6 +8,7 @@ import (
 
 func init() {
 	for _, name := range []string{"sync", "copy", "move"} {
+		name := name
 		moveHelp := ""
 		if name == "move" {
 			moveHelp = "- deleteEmptySrcDirs - delete empty src directories if set\n"

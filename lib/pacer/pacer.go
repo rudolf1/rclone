@@ -2,12 +2,9 @@
 package pacer
 
 import (
-	"errors"
-	"fmt"
 	"sync"
 	"time"
 
-	"github.com/rclone/rclone/lib/caller"
 	liberrors "github.com/rclone/rclone/lib/errors"
 )
 
@@ -154,13 +151,13 @@ func (p *Pacer) ModifyCalculator(f func(Calculator)) {
 // This must be called as a pair with endCall.
 //
 // This waits for the pacer token
-func (p *Pacer) beginCall(limitConnections bool) {
+func (p *Pacer) beginCall() {
 	// pacer starts with a token in and whenever we take one out
 	// XXX ms later we put another in.  We could do this with a
 	// Ticker more accurately, but then we'd have to work out how
 	// not to run it when it wasn't needed
 	<-p.pacer
-	if limitConnections {
+	if p.maxConnections > 0 {
 		<-p.connTokens
 	}
 
@@ -177,8 +174,8 @@ func (p *Pacer) beginCall(limitConnections bool) {
 //
 // This should calculate a new sleepTime.  It takes a boolean as to
 // whether the operation should be retried or not.
-func (p *Pacer) endCall(retry bool, err error, limitConnections bool) {
-	if limitConnections {
+func (p *Pacer) endCall(retry bool, err error) {
+	if p.maxConnections > 0 {
 		p.connTokens <- struct{}{}
 	}
 	p.mu.Lock()
@@ -193,28 +190,12 @@ func (p *Pacer) endCall(retry bool, err error, limitConnections bool) {
 }
 
 // call implements Call but with settable retries
-//
-// This detects the pacer being called reentrantly.
-//
-// This looks for Pacer.call in the call stack and returns true if it
-// is found.
-//
-// Ideally we would do this by passing a context about but there are
-// an awful lot of Pacer calls!
-//
-// This is only needed when p.maxConnections > 0 which isn't a common
-// configuration so adding a bit of extra slowdown here is not a
-// problem.
 func (p *Pacer) call(fn Paced, retries int) (err error) {
 	var retry bool
-	limitConnections := false
-	if p.maxConnections > 0 && !caller.Present("(*Pacer).call") {
-		limitConnections = true
-	}
 	for i := 1; i <= retries; i++ {
-		p.beginCall(limitConnections)
+		p.beginCall()
 		retry, err = p.invoker(i, retries, fn)
-		p.endCall(retry, err, limitConnections)
+		p.endCall(retry, err)
 		if !retry {
 			break
 		}
@@ -254,22 +235,15 @@ type retryAfterError struct {
 }
 
 func (r *retryAfterError) Error() string {
-	return fmt.Sprintf("%v: trying again in %v", r.error, r.retryAfter)
+	return r.error.Error()
 }
 
 func (r *retryAfterError) Cause() error {
 	return r.error
 }
 
-func (r *retryAfterError) Unwrap() error {
-	return r.error
-}
-
 // RetryAfterError returns a wrapped error that can be used by Calculator implementations
 func RetryAfterError(err error, retryAfter time.Duration) error {
-	if err == nil {
-		err = errors.New("too many requests")
-	}
 	return &retryAfterError{
 		error:      err,
 		retryAfter: retryAfter,

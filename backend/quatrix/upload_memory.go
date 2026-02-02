@@ -59,7 +59,11 @@ func (u *UploadMemoryManager) Consume(fileID string, neededMemory int64, speed f
 
 	defer func() { u.fileUsage[fileID] = borrowed }()
 
-	effectiveChunkSize := min(neededMemory, max(int64(speed*u.effectiveTime.Seconds()), u.reserved))
+	effectiveChunkSize := max(int64(speed*u.effectiveTime.Seconds()), u.reserved)
+
+	if neededMemory < effectiveChunkSize {
+		effectiveChunkSize = neededMemory
+	}
 
 	if effectiveChunkSize <= u.reserved {
 		return effectiveChunkSize

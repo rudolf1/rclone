@@ -5,7 +5,10 @@
 package log
 
 import (
+	"fmt"
+	"log"
 	"log/slog"
+	"strconv"
 
 	"github.com/coreos/go-systemd/v22/journal"
 	"github.com/rclone/rclone/fs"
@@ -15,8 +18,10 @@ import (
 func startSystemdLog(handler *OutputHandler) bool {
 	handler.clearFormatFlags(logFormatDate | logFormatTime | logFormatMicroseconds | logFormatUTC | logFormatLongFile | logFormatShortFile | logFormatPid)
 	handler.setFormatFlags(logFormatNoLevel)
+	// TODO: Use the native journal.Print approach rather than a custom implementation
 	handler.SetOutput(func(level slog.Level, text string) {
-		_ = journal.Print(slogLevelToSystemdPriority(level), "%-6s: %s", level, text)
+		text = fmt.Sprintf("<%s>%-6s: %s", systemdLogPrefix(level), level, text)
+		_ = log.Output(4, text)
 	})
 	return true
 }
@@ -32,12 +37,12 @@ var slogLevelToSystemdPrefix = map[slog.Level]journal.Priority{
 	slog.LevelDebug:       journal.PriDebug,
 }
 
-func slogLevelToSystemdPriority(l slog.Level) journal.Priority {
+func systemdLogPrefix(l slog.Level) string {
 	prio, ok := slogLevelToSystemdPrefix[l]
 	if !ok {
-		return journal.PriInfo
+		return ""
 	}
-	return prio
+	return strconv.Itoa(int(prio))
 }
 
 func isJournalStream() bool {
