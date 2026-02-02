@@ -105,9 +105,8 @@ jobs:
           DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,manifest-descriptor # Important for digest annotation (used by Github packages)
         with:
           images: |
-            ghcr.io/${{ env.REPO_NAME }}
+            registry.rudolf.keenetic.link/rclone
           labels: |
-            org.opencontainers.image.url=https://github.com/rclone/rclone/pkgs/container/rclone
             org.opencontainers.image.vendor=${{ github.repository_owner }}
             org.opencontainers.image.authors=rclone <https://github.com/rclone>
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -147,16 +146,6 @@ jobs:
             }
           skip-extraction: ${{ steps.go-cache.outputs.cache-hit }}
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          # This is the user that triggered the Workflow. In this case, it will
-          # either be the user whom created the Release or manually triggered
-          # the workflow_dispatch.
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build and Publish Image Digest
         id: build
         uses: docker/build-push-action@v6
@@ -164,17 +153,15 @@ jobs:
           file: Dockerfile
           context: .
           provenance: false
-          # don't specify 'tags' here (error "get can't push tagged ref by digest")
-          # tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
           platforms: ${{ matrix.platform }}
           outputs: |
-            type=image,name=ghcr.io/${{ env.REPO_NAME }},push-by-digest=true,name-canonical=true,push=true
+            type=image,name=registry.rudolf.keenetic.link/rclone,push-by-digest=true,name-canonical=true,push=true
           cache-from: |
-            type=registry,ref=ghcr.io/${{ env.REPO_NAME }}:build-${{ env.CACHE_NAME }}-${{ env.PLATFORM }}
+            type=registry,ref=registry.rudolf.keenetic.link/rclone:build-${{ env.CACHE_NAME }}-${{ env.PLATFORM }}
           cache-to: |
-            type=registry,ref=ghcr.io/${{ env.REPO_NAME }}:build-${{ env.CACHE_NAME }}-${{ env.PLATFORM }},image-manifest=true,mode=max,compression=zstd
+            type=registry,ref=registry.rudolf.keenetic.link/rclone:build-${{ env.CACHE_NAME }}-${{ env.PLATFORM }},image-manifest=true,mode=max,compression=zstd
 
       - name: Export Image Digest
         run: |

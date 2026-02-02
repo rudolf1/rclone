@@ -50,4 +50,5 @@ RUN addgroup -g 1009 rclone && adduser -u 1009 -Ds /bin/sh -G rclone rclone
 ENTRYPOINT [ "rclone" ]
 
 WORKDIR /data
+
 ENV XDG_CONFIG_HOME=/config
